@@ -1,5 +1,15 @@
 import type { OnboardingMilestone } from './onboarding.js';
 import { sanitizeOnboardingMilestones } from './onboarding.js';
+import type {
+  WebSearchProvider,
+  WebSearchProviderSettings,
+  WebSearchSettings,
+} from './web-search.js';
+import {
+  defaultWebSearchSettings,
+  isWebSearchProvider,
+  reconcileMaskedToken,
+} from './web-search.js';
 
 export type SettingsSection =
   | 'general'
@@ -213,6 +223,24 @@ export interface OnboardingSettings {
   milestones: OnboardingMilestone[];
 }
 
+export interface OpenGatewaySettings {
+  enabled: boolean;
+  host: '127.0.0.1' | '0.0.0.0';
+  port: number;
+  token: string;
+}
+
+export interface OpenGatewayRuntimeStatus {
+  enabled: boolean;
+  running: boolean;
+  host: OpenGatewaySettings['host'];
+  port: number;
+  baseUrl: string | null;
+  startedAt?: number;
+  lastError?: string;
+  tokenConfigured: boolean;
+}
+
 export interface AppSettings {
   schemaVersion: 1;
   network: NetworkSettings;
@@ -221,6 +249,8 @@ export interface AppSettings {
   appearance: AppearanceSettings;
   personalization: PersonalizationSettings;
   onboarding: OnboardingSettings;
+  openGateway: OpenGatewaySettings;
+  webSearch: WebSearchSettings;
 }
 
 export interface UsageRequestLog {
@@ -274,6 +304,14 @@ export type UpdateAppSettingsInput = Partial<{
   usage: Partial<UsageSettings>;
   appearance: Partial<AppearanceSettings>;
   personalization: Partial<PersonalizationSettings>;
+  openGateway: Partial<OpenGatewaySettings>;
+  webSearch: Partial<{
+    enabled: boolean;
+    defaultProvider: WebSearchProvider;
+    providers: Partial<{
+      tavily: Partial<WebSearchProviderSettings>;
+    }>;
+  }>;
 }>;
 
 export type PersonalizationSettingsWarning =
@@ -362,6 +400,13 @@ export function createDefaultSettings(): AppSettings {
     onboarding: {
       milestones: [],
     },
+    openGateway: {
+      enabled: false,
+      host: '127.0.0.1',
+      port: 3939,
+      token: '',
+    },
+    webSearch: defaultWebSearchSettings(),
   };
 }
 
@@ -409,6 +454,36 @@ export function mergeSettings(current: AppSettings, patch: UpdateAppSettingsInpu
       // rather than the generic UpdateAppSettingsInput patch surface.
       // Keep the existing list intact when callers patch other sections.
     },
+    openGateway: {
+      ...current.openGateway,
+      ...(patch.openGateway ?? {}),
+    },
+    webSearch: mergeWebSearchSettings(current.webSearch, patch.webSearch),
+  };
+}
+
+function mergeWebSearchSettings(
+  current: WebSearchSettings,
+  patch: UpdateAppSettingsInput['webSearch'],
+): WebSearchSettings {
+  if (!patch) return current;
+  const tavilyPatch = patch.providers?.tavily;
+  const candidateProvider = patch.defaultProvider;
+  const nextProvider: WebSearchProvider = isWebSearchProvider(candidateProvider)
+    ? candidateProvider
+    : current.defaultProvider;
+  // Mask-sentinel preservation lives here so the IPC boundary does
+  // not have to special-case the round-tripped masked value.
+  const nextApiKey =
+    tavilyPatch && typeof tavilyPatch.apiKey === 'string'
+      ? reconcileMaskedToken(current.providers.tavily.apiKey, tavilyPatch.apiKey)
+      : current.providers.tavily.apiKey;
+  return {
+    enabled: typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
+    defaultProvider: nextProvider,
+    providers: {
+      tavily: { apiKey: nextApiKey },
+    },
   };
 }
 
@@ -422,6 +497,8 @@ export function normalizeSettings(input: unknown): AppSettings {
     usage: value.usage,
     appearance: value.appearance,
     personalization: value.personalization,
+    openGateway: value.openGateway,
+    webSearch: value.webSearch,
   });
   // PR110b: milestones bypass the generic patch surface so we can
   // sanitize them with the closed-enum + at-most-one validator on
@@ -493,6 +570,41 @@ export function normalizeSettings(input: unknown): AppSettings {
     onboarding: {
       milestones: sanitizeOnboardingMilestones(rawMilestones),
     },
+    openGateway: normalizeOpenGatewaySettings(base.openGateway),
+    webSearch: normalizeWebSearchSettings(base.webSearch),
+  };
+}
+
+function normalizeWebSearchSettings(settings: WebSearchSettings): WebSearchSettings {
+  const enabled = settings.enabled === true;
+  const defaultProvider = isWebSearchProvider(settings.defaultProvider)
+    ? settings.defaultProvider
+    : 'tavily';
+  // Cap apiKey length defensively. Tavily keys are < 64 chars; anything
+  // longer is almost certainly garbage that would break log redaction.
+  const rawApiKey = settings.providers?.tavily?.apiKey;
+  const apiKey =
+    typeof rawApiKey === 'string' && rawApiKey.length <= 256 ? rawApiKey : '';
+  return {
+    enabled,
+    defaultProvider,
+    providers: { tavily: { apiKey } },
+  };
+}
+
+function normalizeOpenGatewaySettings(settings: OpenGatewaySettings): OpenGatewaySettings {
+  const port = Number.isInteger(settings.port) && settings.port >= 1024 && settings.port <= 65535
+    ? settings.port
+    : 3939;
+  const host = settings.host === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1';
+  const token = typeof settings.token === 'string' && settings.token.length <= 256
+    ? settings.token
+    : '';
+  return {
+    enabled: settings.enabled === true,
+    host,
+    port,
+    token,
   };
 }
 

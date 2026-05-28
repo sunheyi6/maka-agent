@@ -22,6 +22,7 @@ import type {
   CreateConnectionInput,
   CreateSessionInput,
   BranchFromTurnInput,
+  DailyReviewSummary,
   RegenerateTurnInput,
   RetryTurnInput,
   SessionCommand,
@@ -36,6 +37,22 @@ import type {
   UsageRange,
   PlanReminder,
 } from '@maka/core';
+import {
+  DAILY_REVIEW_LIST_LIMIT,
+  buildDailyReviewSummary,
+  dailyUsageQuery,
+  localDayBoundsAt,
+  localDayBoundsForInstant,
+  pickDailyReviewSessions,
+  pickDailyReviewTopEntries,
+} from '@maka/core';
+import {
+  isWebSearchProvider,
+  normalizeWebSearchLimit,
+  normalizeWebSearchQuery,
+} from '@maka/core';
+import { queryTavily, TAVILY_TEST_QUERY, TAVILY_TEST_LIMIT } from './web-search/tavily.js';
+import { buildWebSearchAgentTool, WEB_SEARCH_TOOL_NAME } from './web-search/agent-tool.js';
 import { runThreadSearch } from './search/thread-search.js';
 import {
   ClaudeSubscriptionService,
@@ -107,6 +124,7 @@ import {
   seedVisualSmokeFixture,
 } from './visual-smoke-fixture.js';
 import { resolveBuildInfo } from './build-info.js';
+import { OpenGatewayService } from './open-gateway.js';
 
 const buildInfo = resolveBuildInfo(app.isPackaged, app.getAppPath());
 
@@ -135,9 +153,27 @@ const claudeSubscription = new ClaudeSubscriptionService({
   userDataDir: app.getPath('userData'),
 });
 const planReminderStore = createPlanReminderStore(workspaceRoot);
+const openGateway = new OpenGatewayService({
+  getSettings: () => settingsStore.get(),
+  listSessions: () => runtime.listSessions(),
+  readMessages: (sessionId) => runtime.getMessages(sessionId),
+  searchThread: (query) =>
+    runThreadSearch({ source: 'thread', query }, {
+      listSessions: () => runtime.listSessions(),
+      readMessages: (sessionId: string) => runtime.getMessages(sessionId),
+      getPrivacyContext: async () => defaultWorkspacePrivacyContext(),
+    }),
+});
 const backends = new BackendRegistry();
 const permissionEngine = new PermissionEngine({ newId: randomUUID, now: Date.now });
-const builtinTools = buildBuiltinTools().filter((tool) => tool.name !== 'Edit');
+const builtinTools = [
+  ...buildBuiltinTools().filter((tool) => tool.name !== 'Edit'),
+  // PR-AGENT-WEB-SEARCH-TOOL-0: Tavily-backed WebSearch tool. Closed
+  // over settingsStore so the renderer never sees the API key; the
+  // permission engine routes it through the `web_read` policy which
+  // prompts the user in explore / ask modes.
+  buildWebSearchAgentTool({ settingsStore }),
+];
 let lookupPricing = buildPricingLookup();
 const botRegistry = new BotRegistry({
   onIncomingMessage: (message) => {
@@ -236,7 +272,17 @@ backends.register('ai-sdk', async (ctx) => {
     tools: builtinTools,
     systemPrompt: ({ cwd }) => buildSystemPrompt(cwd),
     recordLlmCall: (event) => recordLlmCall({ repo: telemetryRepo, lookupPricing }, event),
-    recordToolInvocation: (event) => recordToolInvocation({ repo: telemetryRepo }, event),
+    recordToolInvocation: (event) =>
+      recordToolInvocation(
+        { repo: telemetryRepo },
+        // PR-AGENT-WEB-SEARCH-TOOL-0: scrub the query out of the
+        // telemetry record. The agent passes the raw user query as
+        // the tool argument; persisting it in `argsSummary` would
+        // leak user-derived content into the usage log.
+        event.toolName === WEB_SEARCH_TOOL_NAME
+          ? { ...event, argsSummary: undefined }
+          : event,
+      ),
     recordToolArtifacts: (event) => persistToolArtifacts(ctx.header.cwd, event),
     newId: randomUUID,
     now: Date.now,
@@ -908,6 +954,75 @@ function registerIpc(): void {
     isSubscriptionExperimentalEnabled(),
   );
 
+  // PR-WEB-SEARCH-TAVILY-0: explicit user-triggered web search. Token
+  // is read from settings inside main; renderer never sees it. Falls
+  // back to the `apiKey` carried by the request only when present (the
+  // Settings "测试" button passes a draft key so the user can validate
+  // before saving). Incognito workspaces fail closed before fetch.
+  ipcMain.handle(
+    'web-search:query',
+    async (
+      _event,
+      request: { query?: unknown; limit?: unknown; provider?: unknown; apiKey?: unknown },
+    ) => {
+      const provider = request?.provider;
+      if (provider !== undefined && !isWebSearchProvider(provider)) {
+        return {
+          ok: false,
+          reason: 'unsupported_provider' as const,
+          message: '该搜索引擎暂未支持。',
+        };
+      }
+      const query = normalizeWebSearchQuery(request?.query);
+      if (query === null) {
+        return { ok: false, reason: 'invalid_query' as const, message: '请输入有效的搜索关键词。' };
+      }
+      const privacy = defaultWorkspacePrivacyContext();
+      if (privacy.incognitoActive) {
+        return { ok: false, reason: 'incognito_active' as const, message: '隐身模式下禁用联网搜索。' };
+      }
+      const settings = await settingsStore.get();
+      if (!settings.webSearch.enabled) {
+        return {
+          ok: false,
+          reason: 'not_configured' as const,
+          message: '请先在 设置 · 联网搜索 中启用 Tavily。',
+        };
+      }
+      const persistedKey = settings.webSearch.providers.tavily.apiKey;
+      const draftKey = typeof request?.apiKey === 'string' ? request.apiKey : '';
+      const effectiveKey = draftKey.length > 0 ? draftKey : persistedKey;
+      const limit = normalizeWebSearchLimit(request?.limit);
+      return queryTavily({ apiKey: effectiveKey, query, limit });
+    },
+  );
+
+  ipcMain.handle(
+    'web-search:test',
+    async (
+      _event,
+      request: { provider?: unknown; apiKey?: unknown } | undefined,
+    ) => {
+      const provider = request?.provider;
+      if (provider !== undefined && !isWebSearchProvider(provider)) {
+        return {
+          ok: false,
+          reason: 'unsupported_provider' as const,
+          message: '该搜索引擎暂未支持。',
+        };
+      }
+      const settings = await settingsStore.get();
+      const persistedKey = settings.webSearch.providers.tavily.apiKey;
+      const draftKey = typeof request?.apiKey === 'string' ? request.apiKey : '';
+      const effectiveKey = draftKey.length > 0 ? draftKey : persistedKey;
+      return queryTavily({
+        apiKey: effectiveKey,
+        query: TAVILY_TEST_QUERY,
+        limit: TAVILY_TEST_LIMIT,
+      });
+    },
+  );
+
   ipcMain.handle('search:thread', async (_event, request: unknown) => {
     // PR-SEARCH-2 review fixup (@xuan `2f1aba55`): pass `unknown`
     // through to the helper, which runs an object-shape guard and
@@ -1172,6 +1287,7 @@ function registerIpc(): void {
     await applySettingsRuntimeEffects(next, patch);
     return buildSettingsUpdateResult(next, patch);
   });
+  ipcMain.handle('gateway:status', async () => openGateway.getStatus());
   ipcMain.handle('settings:testNetworkProxy', async (_event, input: TestProxyInput = {}) => {
     const started = Date.now();
     const stored = toContractNetworkSettings((await settingsStore.get()).network).proxy;
@@ -1245,6 +1361,35 @@ function registerIpc(): void {
   );
   ipcMain.handle('usage:summary', (_event, query: UsageQuery) =>
     tryResult(async () => telemetryRepo.summary(query), 'USAGE_SUMMARY_FAILED'),
+  );
+  // PR-DAILY-REVIEW-MVP-0: bundle one day's telemetry + session
+  // metadata into a single IPC payload so the renderer panel does not
+  // have to fan out 4 IPC calls of its own. All reads are local: the
+  // existing telemetry repo + session list. No new disk/network IO.
+  ipcMain.handle(
+    'daily-review:day',
+    (_event, payload: { offsetDays?: number } | undefined) =>
+      tryResult(async (): Promise<DailyReviewSummary> => {
+        const offset = Number.isFinite(payload?.offsetDays) ? Math.trunc(payload!.offsetDays!) : 0;
+        const day =
+          offset === 0
+            ? localDayBoundsForInstant(Date.now())
+            : localDayBoundsAt(Date.now(), offset);
+        const usageQuery = dailyUsageQuery(day);
+        const [usageSummary, toolBuckets, modelBuckets, sessions] = await Promise.all([
+          Promise.resolve(telemetryRepo.summary(usageQuery)),
+          Promise.resolve(telemetryRepo.buckets(usageQuery, 'tool')),
+          Promise.resolve(telemetryRepo.buckets(usageQuery, 'model')),
+          Promise.resolve(runtime.listSessions()),
+        ]);
+        return buildDailyReviewSummary({
+          day,
+          usageSummary,
+          sessions: pickDailyReviewSessions(sessions, day, DAILY_REVIEW_LIST_LIMIT),
+          topTools: pickDailyReviewTopEntries(toolBuckets, DAILY_REVIEW_LIST_LIMIT),
+          topModels: pickDailyReviewTopEntries(modelBuckets, DAILY_REVIEW_LIST_LIMIT),
+        });
+      }, 'DAILY_REVIEW_DAY_FAILED'),
   );
   ipcMain.handle('usage:buckets', (_event, query: UsageQuery & { groupBy: UsageGroupBy }) =>
     tryResult(async () => telemetryRepo.buckets(query, query.groupBy), 'USAGE_BUCKETS_FAILED'),
@@ -1336,6 +1481,10 @@ async function applySettingsRuntimeEffects(settings: AppSettings, patch: UpdateA
   }
   if (patch.botChat) {
     await botRegistry.applySettings(settings.botChat);
+  }
+  if (patch.openGateway) {
+    const status = await openGateway.sync(settings.openGateway);
+    mainWindow?.webContents.send('gateway:statusChanged', status);
   }
 }
 
@@ -1808,6 +1957,7 @@ app.whenReady().then(async () => {
   await telemetryRepo.load();
   lookupPricing = buildPricingLookup(telemetryRepo.listPricingOverrides());
   await botRegistry.applySettings(settings.botChat);
+  await openGateway.sync(settings.openGateway);
   await createWindow();
   await refreshPlanReminderTimers();
 });
@@ -1819,6 +1969,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   for (const id of Array.from(planReminderTimers.keys())) clearPlanReminderTimer(id);
   void botRegistry.stopAll();
+  void openGateway.stop();
 });
 
 app.on('activate', () => {

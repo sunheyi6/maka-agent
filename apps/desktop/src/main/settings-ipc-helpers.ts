@@ -51,6 +51,14 @@ export function preserveSensitivePlaceholders(
           },
         }
       : {}),
+    ...(patch.openGateway?.token === SENSITIVE_PLACEHOLDER
+      ? {
+          openGateway: {
+            ...patch.openGateway,
+            token: current.openGateway.token,
+          },
+        }
+      : {}),
   };
 }
 
@@ -82,6 +90,26 @@ export function maskAppSettings(settings: AppSettings, revealPatch: UpdateAppSet
           },
         ]),
       ) as AppSettings['botChat']['channels'],
+    },
+    openGateway: {
+      ...settings.openGateway,
+      token: shouldReveal(revealPatch.openGateway?.token)
+        ? settings.openGateway.token
+        : maskSensitive(settings.openGateway.token) ?? '',
+    },
+    // PR-WEB-SEARCH-TAVILY-0: Tavily API key is masked at the IPC
+    // store boundary. Renderer never sees the cleartext value;
+    // re-submitting the masked sentinel is treated as "keep current"
+    // in `mergeWebSearchSettings`.
+    webSearch: {
+      ...settings.webSearch,
+      providers: {
+        tavily: {
+          apiKey: shouldReveal(revealPatch.webSearch?.providers?.tavily?.apiKey)
+            ? settings.webSearch.providers.tavily.apiKey
+            : maskSensitive(settings.webSearch.providers.tavily.apiKey) ?? '',
+        },
+      },
     },
   };
 }

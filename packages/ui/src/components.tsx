@@ -63,6 +63,11 @@ import type {
   ToolResultContent,
 } from '@maka/core';
 import {
+  formatRelativeTimestamp,
+  nextRelativeRefreshDelay,
+} from '@maka/core';
+import type { DailyReviewSummary, DailyReviewTopEntry } from '@maka/core';
+import {
   materializeChat,
   materializeTools,
   materializeTurns,
@@ -87,7 +92,7 @@ import {
  *   - search       → 搜索   (modal trigger; NOT a section)
  *   - automations  → 计划   (local reminder MVP; no arbitrary automation execution)
  *   - skills       → 技能   (reuses the existing skills view)
- *   - daily-review → 每日回顾  (stub "即将推出" view; future PR-DAILY-*)
+ *   - daily-review → 每日回顾  (PR-DAILY-REVIEW-MVP-0: real panel reading local telemetry + sessions)
  */
 export type NavSelection =
   | { section: 'sessions'; filter: SessionFilter }
@@ -299,6 +304,13 @@ export function SessionListPanel(props: {
   onCreatePlanReminder?(input: { title: string; note?: string; runAt: number }): void;
   onTogglePlanReminder?(id: string, enabled: boolean): void;
   onDeletePlanReminder?(id: string): void;
+  /**
+   * PR-DAILY-REVIEW-MVP-0: bridge for the `每日回顾` panel. When
+   * provided, the daily-review section renders the real panel instead
+   * of the stub view. When `undefined` (e.g. in visual-smoke fixtures
+   * without an IPC layer), it falls back to the legacy stub.
+   */
+  dailyReviewBridge?: DailyReviewBridge;
   rowActions?: SessionRowActions;
 }) {
   // PR-SIDEBAR-IA-0 Phase 2 fixup (WAWQAQ `49309559` + kenji
@@ -526,15 +538,17 @@ export function SessionListPanel(props: {
               })}
             </div>
           ) : (
-            <div className="maka-empty-state">
-              <Sparkles className="maka-empty-state-icon" strokeWidth={1.5} />
-              <div className="maka-empty-state-title">还没有 Skill</div>
-              <div className="maka-empty-state-body">
-                把一个含 <code className="maka-empty-state-code">SKILL.md</code> 的文件夹放到工作区的
-                {' '}<code className="maka-empty-state-code">skills/</code> 目录下，重启 Maka 后会出现在这里。
-                工作区路径在 设置 · 关于 · 工作区。
-              </div>
-            </div>
+            <EmptyState
+              Icon={Sparkles}
+              title="还没有 Skill"
+              body={
+                <>
+                  把一个含 <code className="maka-empty-state-code">SKILL.md</code> 的文件夹放到工作区的
+                  {' '}<code className="maka-empty-state-code">skills/</code> 目录下，重启 Maka 后会出现在这里。
+                  工作区路径在 设置 · 关于 · 工作区。
+                </>
+              }
+            />
           )
         ) : props.selection.section === 'automations' ? (
           <PlanReminderPanel
@@ -545,14 +559,12 @@ export function SessionListPanel(props: {
           />
         ) : props.selection.section === 'sessions' ? (
           props.sessions.length === 0 ? (
-            <div className="maka-empty-state">
-              <MessageSquare className="maka-empty-state-icon" strokeWidth={1.5} />
-              <div className="maka-empty-state-title">还没有对话</div>
-              <div className="maka-empty-state-body">和 Maka 的对话会出现在这里。点下面开始第一条。</div>
-              <button className="maka-button maka-empty-state-cta" type="button" onClick={props.onNew}>
-                新建对话
-              </button>
-            </div>
+            <EmptyState
+              Icon={MessageSquare}
+              title="还没有对话"
+              body="和 Maka 的对话会出现在这里。点下面开始第一条。"
+              cta={{ label: '新建对话', onClick: props.onNew }}
+            />
           ) : (
             <div className="maka-list-stack" onKeyDown={handleListKeyDown}>
               <SessionListGroups
@@ -581,24 +593,25 @@ export function SessionListPanel(props: {
               />
             </div>
           )
+        ) : props.selection.section === 'daily-review' && props.dailyReviewBridge ? (
+          // PR-DAILY-REVIEW-MVP-0: real panel — reads telemetry +
+          // session metadata via the bridge. Stub fallback kept just
+          // below for fixtures that don't wire a bridge.
+          <DailyReviewPanel
+            bridge={props.dailyReviewBridge}
+            onSelectSession={props.onSelectSession}
+          />
         ) : (
-          // PR-SIDEBAR-IA-0 Phase 2: stub view for Daily Review.
-          // It renders an empty-state
-          // pattern reusing `.maka-empty-state` for visual rhythm
-          // consistency. Per xuan `47e204f2` #1, these placeholders
-          // do NOT introduce new framework code — just shape +
-          // generalized 中文 copy. Real implementations:
-          //   - Search: PR-SEARCH-MODAL-0 (Phase 4 within this PR)
-          //   - Daily Review: future PR-DAILY-*
           (() => {
             const stub = STUB_VIEWS[props.selection.section];
             if (!stub) return null;
             return (
-              <div className="maka-empty-state" data-stub-view={props.selection.section}>
-                <stub.Icon className="maka-empty-state-icon" strokeWidth={1.5} />
-                <div className="maka-empty-state-title">{stub.title}</div>
-                <div className="maka-empty-state-body">{stub.body}</div>
-              </div>
+              <EmptyState
+                Icon={stub.Icon}
+                title={stub.title}
+                body={stub.body}
+                dataStubView={props.selection.section}
+              />
             );
           })()
         )}
@@ -686,6 +699,239 @@ const STUB_VIEWS: Record<
   },
 };
 
+/**
+ * PR-EMPTY-STATE-COMPONENT-0: shared empty-state container. Folds the
+ * 4 visual duplicates (skills empty / sessions empty / stub views /
+ * plan reminders empty) into a single declaration so the next empty
+ * surface lands consistent by default and the icon-sizing /
+ * paragraph-spacing / CTA-placement decisions only live in one
+ * place. The `.maka-empty-state*` CSS family is unchanged.
+ *
+ * Body accepts `ReactNode` so callers can keep inline `<code>` for
+ * the skills install instructions; CTAs are rendered as the canonical
+ * `.maka-button.maka-empty-state-cta` so we never grow a competing
+ * pile of "empty-state action variants".
+ */
+export interface EmptyStateProps {
+  Icon: typeof Search;
+  title: string;
+  body: ReactNode;
+  cta?: { label: string; onClick: () => void };
+  /** Optional extra class on the container (e.g. `maka-plan-empty`). */
+  extraClassName?: string;
+  /** Optional `data-stub-view` passthrough for visual-smoke selectors. */
+  dataStubView?: string;
+}
+
+export function EmptyState(props: EmptyStateProps) {
+  const className = props.extraClassName
+    ? `maka-empty-state ${props.extraClassName}`
+    : 'maka-empty-state';
+  return (
+    <div className={className} data-stub-view={props.dataStubView}>
+      <props.Icon className="maka-empty-state-icon" strokeWidth={1.5} />
+      <div className="maka-empty-state-title">{props.title}</div>
+      <div className="maka-empty-state-body">{props.body}</div>
+      {props.cta && (
+        <button
+          className="maka-button maka-empty-state-cta"
+          type="button"
+          onClick={props.cta.onClick}
+        >
+          {props.cta.label}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * PR-DAILY-REVIEW-MVP-0: bridge handed in by `main.tsx`. Keeps
+ * `@maka/ui` out of `window.maka` — the renderer wires
+ * `(offsetDays) => window.maka.dailyReview.day(offsetDays)` and the
+ * UI layer is reusable in fixtures / visual smoke / future surfaces
+ * (e.g. a desktop notification renderer).
+ */
+export interface DailyReviewBridge {
+  fetchDay(offsetDays: number): Promise<DailyReviewSummary>;
+}
+
+/**
+ * Local-only daily summary view. Renders today by default; the
+ * left/right arrows step through `offsetDays`. No LLM call — the
+ * bullet list of sessions / top tools / top models is the whole
+ * value-prop. Future PR can layer a generated narrative on top.
+ *
+ * borrow: alma "today" digest concept (read-only summary).
+ * diverge: no cron, no auto-push, no memory promotion (privacy default).
+ */
+function DailyReviewPanel(props: {
+  bridge: DailyReviewBridge;
+  onSelectSession?: (sessionId: string) => void;
+}) {
+  const [offsetDays, setOffsetDays] = useState(0);
+  const [summary, setSummary] = useState<DailyReviewSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    props.bridge
+      .fetchDay(offsetDays)
+      .then((next) => {
+        if (cancelled) return;
+        setSummary(next);
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setSummary(null);
+        setError(err instanceof Error ? err.message : '加载失败');
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [offsetDays, props.bridge]);
+
+  const dayLabel = offsetDays === 0 ? '今天' : offsetDays === -1 ? '昨天' : `${-offsetDays} 天前`;
+
+  return (
+    <div className="maka-daily-review-panel" data-loading={loading ? 'true' : undefined}>
+      <header className="maka-daily-review-header">
+        <button
+          type="button"
+          className="maka-button maka-button-ghost"
+          onClick={() => setOffsetDays((n) => n - 1)}
+          aria-label="查看更早一天"
+        >
+          ‹
+        </button>
+        <div className="maka-daily-review-day">{dayLabel}</div>
+        <button
+          type="button"
+          className="maka-button maka-button-ghost"
+          onClick={() => setOffsetDays((n) => Math.min(0, n + 1))}
+          disabled={offsetDays >= 0}
+          aria-label="查看更晚一天"
+        >
+          ›
+        </button>
+      </header>
+
+      {error ? (
+        <EmptyState
+          Icon={CalendarDays}
+          title="读取失败"
+          body={error}
+          cta={{ label: '重试', onClick: () => setOffsetDays((n) => n) }}
+        />
+      ) : loading || !summary ? (
+        <div className="maka-daily-review-loading" aria-busy="true">
+          <div className="maka-skeleton maka-skeleton-line" style={{ width: '60%' }} />
+          <div className="maka-skeleton maka-skeleton-line" style={{ width: '90%' }} />
+          <div className="maka-skeleton maka-skeleton-line" style={{ width: '75%' }} />
+        </div>
+      ) : summary.totals.sessionCount === 0 && summary.totals.requestCount === 0 ? (
+        <EmptyState
+          Icon={CalendarDays}
+          title={offsetDays === 0 ? '今天还没有活动' : `${dayLabel}没有活动`}
+          body="这一天没有发起对话，也没有调用模型。"
+        />
+      ) : (
+        <>
+          <section className="maka-daily-review-totals" aria-label="今日总览">
+            <DailyReviewTotalsCell label="对话" value={summary.totals.sessionCount.toString()} />
+            <DailyReviewTotalsCell label="请求" value={summary.totals.requestCount.toString()} />
+            <DailyReviewTotalsCell
+              label="Tokens"
+              value={summary.totals.totalTokens.toLocaleString()}
+            />
+            <DailyReviewTotalsCell
+              label="费用"
+              value={`$${summary.totals.costUsd.toFixed(2)}`}
+            />
+            {summary.totals.errorCount > 0 && (
+              <DailyReviewTotalsCell
+                label="错误"
+                value={summary.totals.errorCount.toString()}
+                tone="error"
+              />
+            )}
+          </section>
+
+          {summary.sessions.length > 0 && (
+            <section className="maka-daily-review-section" aria-label="活跃对话">
+              <h4 className="maka-daily-review-section-title">活跃对话</h4>
+              <ul className="maka-daily-review-list">
+                {summary.sessions.map((session) => (
+                  <li key={session.id} className="maka-daily-review-list-item">
+                    <button
+                      type="button"
+                      className="maka-daily-review-session-button"
+                      onClick={() => props.onSelectSession?.(session.id)}
+                      disabled={!props.onSelectSession}
+                    >
+                      <span className="maka-daily-review-session-name">{session.name}</span>
+                      <RelativeTime
+                        ts={session.lastMessageAt}
+                        className="maka-daily-review-session-time"
+                      />
+                    </button>
+                    {session.lastMessagePreview && (
+                      <span className="maka-daily-review-session-preview">
+                        {session.lastMessagePreview}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {summary.topModels.length > 0 && (
+            <DailyReviewTopList title="模型使用" entries={summary.topModels} />
+          )}
+
+          {summary.topTools.length > 0 && (
+            <DailyReviewTopList title="工具调用" entries={summary.topTools} />
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function DailyReviewTotalsCell(props: { label: string; value: string; tone?: 'error' }) {
+  return (
+    <div className="maka-daily-review-totals-cell" data-tone={props.tone}>
+      <span className="maka-daily-review-totals-value">{props.value}</span>
+      <span className="maka-daily-review-totals-label">{props.label}</span>
+    </div>
+  );
+}
+
+function DailyReviewTopList(props: { title: string; entries: ReadonlyArray<DailyReviewTopEntry> }) {
+  return (
+    <section className="maka-daily-review-section" aria-label={props.title}>
+      <h4 className="maka-daily-review-section-title">{props.title}</h4>
+      <ul className="maka-daily-review-list">
+        {props.entries.map((entry) => (
+          <li key={entry.key} className="maka-daily-review-list-item">
+            <span className="maka-daily-review-top-label">{entry.label}</span>
+            <span className="maka-daily-review-top-meta">
+              {entry.requests} 次 · {entry.totalTokens.toLocaleString()} tok
+              {entry.costUsd > 0 ? ` · $${entry.costUsd.toFixed(2)}` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PlanReminderPanel(props: {
   reminders: PlanReminder[];
   onCreate?(input: { title: string; note?: string; runAt: number }): void;
@@ -750,13 +996,12 @@ function PlanReminderPanel(props: {
 
       <div className="maka-plan-list" aria-label="计划提醒列表">
         {props.reminders.length === 0 ? (
-          <div className="maka-empty-state maka-plan-empty">
-            <Clock className="maka-empty-state-icon" strokeWidth={1.5} />
-            <div className="maka-empty-state-title">还没有计划提醒</div>
-            <div className="maka-empty-state-body">
-              创建一个明确时间的提醒；Maka 会持久化并在到点时记录执行结果。
-            </div>
-          </div>
+          <EmptyState
+            Icon={Clock}
+            title="还没有计划提醒"
+            body="创建一个明确时间的提醒；Maka 会持久化并在到点时记录执行结果。"
+            extraClassName="maka-plan-empty"
+          />
         ) : (
           props.reminders.map((reminder) => (
             <article key={reminder.id} className="maka-plan-card" data-status={reminder.status}>
@@ -2472,16 +2717,6 @@ function PermissionModeSwitcher(props: {
   );
 }
 
-const messageTimeFormat = (() => {
-  if (typeof Intl === 'undefined' || typeof Intl.RelativeTimeFormat !== 'function') {
-    return { format: (n: number, unit: Intl.RelativeTimeFormatUnit) => `${n}${unit[0]}` } as unknown as Intl.RelativeTimeFormat;
-  }
-  return new Intl.RelativeTimeFormat(
-    typeof navigator !== 'undefined' ? navigator.language : 'en',
-    { numeric: 'auto', style: 'narrow' },
-  );
-})();
-
 const absoluteTimeFormat = (() => {
   if (typeof Intl === 'undefined' || typeof Intl.DateTimeFormat !== 'function') {
     return { format: (d: Date) => d.toISOString() } as unknown as Intl.DateTimeFormat;
@@ -2492,19 +2727,35 @@ const absoluteTimeFormat = (() => {
   );
 })();
 
-function formatRelativeTimestamp(ts: number): string {
-  const diffMs = Date.now() - ts;
-  const diffSeconds = Math.round(diffMs / 1000);
-  if (diffSeconds < 60) return messageTimeFormat.format(-Math.max(1, diffSeconds), 'second');
-  const diffMinutes = Math.round(diffSeconds / 60);
-  if (diffMinutes < 60) return messageTimeFormat.format(-diffMinutes, 'minute');
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return messageTimeFormat.format(-diffHours, 'hour');
-  return messageTimeFormat.format(-Math.round(diffHours / 24), 'day');
-}
-
 function formatAbsoluteTimestamp(ts: number): string {
   return absoluteTimeFormat.format(new Date(ts));
+}
+
+/**
+ * PR-RELATIVE-TIME-0: a self-refreshing relative-time label. Sidebar +
+ * message rows stay correct even when the window has been open for
+ * hours without re-rendering on their own. The tick cadence comes from
+ * `nextRelativeRefreshDelay` so we tick every second within the first
+ * minute, every minute within the first hour, then every 10 minutes;
+ * past the 7-day horizon we stop ticking and show the absolute date.
+ */
+export function RelativeTime(props: { ts: number; className?: string; suppressTitle?: boolean }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const delay = nextRelativeRefreshDelay(props.ts);
+    if (delay === null) return;
+    const id = setTimeout(() => setTick((n) => n + 1), delay);
+    return () => clearTimeout(id);
+  });
+  return (
+    <small
+      className={props.className ?? 'maka-message-time'}
+      aria-hidden="true"
+      title={props.suppressTitle ? undefined : formatAbsoluteTimestamp(props.ts)}
+    >
+      {formatRelativeTimestamp(props.ts)}
+    </small>
+  );
 }
 
 function messageRoleLabel(role: string, userLabel?: string): string {
@@ -3119,11 +3370,7 @@ function MessageMeta(props: { role: string; userLabel?: string; ts?: number }) {
         {initial}
       </span>
       {!isAnonymousUser && <span className="maka-message-name">{label}</span>}
-      {props.ts !== undefined && (
-        <small className="maka-message-time" aria-hidden="true">
-          {formatRelativeTimestamp(props.ts)}
-        </small>
-      )}
+      {props.ts !== undefined && <RelativeTime ts={props.ts} />}
     </span>
   );
 }
@@ -3951,17 +4198,6 @@ function mergeTools(stored: ToolActivityItem[], live: ToolActivityItem[]): ToolA
   return [...byId.values()];
 }
 
-// One shared formatter per renderer instance — `Intl.RelativeTimeFormat` is
-// cheap to allocate but pinning it avoids reading `navigator.language` on
-// every list render.
-const relativeTimeFormat: Intl.RelativeTimeFormat =
-  typeof Intl !== 'undefined' && typeof Intl.RelativeTimeFormat === 'function'
-    ? new Intl.RelativeTimeFormat(
-        typeof navigator !== 'undefined' ? navigator.language : 'en',
-        { numeric: 'auto', style: 'narrow' },
-      )
-    : ({ format: (n: number, unit: Intl.RelativeTimeFormatUnit) => `${n}${unit[0]}` } as unknown as Intl.RelativeTimeFormat);
-
 const noMessagesYet =
   typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('zh')
     ? '暂无消息'
@@ -4031,10 +4267,5 @@ function groupSessionsByTime(sessions: SessionSummary[]): SessionGroup[] {
 
 function formatSessionMeta(session: SessionSummary): string {
   if (!session.lastMessageAt) return noMessagesYet;
-  const diffMs = Date.now() - session.lastMessageAt;
-  const diffMinutes = Math.max(1, Math.round(diffMs / 60_000));
-  if (diffMinutes < 60) return relativeTimeFormat.format(-diffMinutes, 'minute');
-  const diffHours = Math.round(diffMinutes / 60);
-  if (diffHours < 24) return relativeTimeFormat.format(-diffHours, 'hour');
-  return relativeTimeFormat.format(-Math.round(diffHours / 24), 'day');
+  return formatRelativeTimestamp(session.lastMessageAt);
 }

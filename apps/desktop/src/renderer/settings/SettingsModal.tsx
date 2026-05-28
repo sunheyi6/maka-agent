@@ -37,6 +37,7 @@ import type {
   OsPermissionId,
   OsPermissionSnapshot,
   OsPermissionState,
+  OpenGatewayRuntimeStatus,
   PermissionSnapshot,
   PersonalizationSettingsWarning,
   SettingsSection,
@@ -57,7 +58,7 @@ import {
   isToastPosition,
 } from '@maka/core';
 import { BOT_PROVIDERS, createDefaultSettings } from '@maka/core/settings';
-import { useModalA11y, useToast } from '@maka/ui';
+import { RelativeTime, useModalA11y, useToast } from '@maka/ui';
 import { ProvidersPanel } from './ProvidersPanel';
 import { openPathFailureCopy, openPathActionLabel } from '../open-path';
 import { applyUiLocale, type UiLocalePreference } from '../theme';
@@ -101,9 +102,9 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   // Group 2: AI — 模型、使用、语音、回顾、网关
   { id: 'models', label: '模型', Icon: Cpu, enabled: true, group: 'AI' },
   { id: 'usage', label: '使用统计', Icon: BarChart3, enabled: true, group: 'AI' },
-  { id: 'daily-review', label: '每日回顾', Icon: CalendarDays, enabled: true, comingSoon: true, group: 'AI' },
+  { id: 'daily-review', label: '每日回顾', Icon: CalendarDays, enabled: true, group: 'AI' },
   { id: 'voice-models', label: '语音模型', Icon: Volume2, enabled: true, comingSoon: true, group: 'AI' },
-  { id: 'open-gateway', label: '开放网关', Icon: Sparkles, enabled: true, comingSoon: true, group: 'AI' },
+  { id: 'open-gateway', label: '开放网关', Icon: Sparkles, enabled: true, group: 'AI' },
   // Group 3: 集成 — bot、搜索、网络
   { id: 'bot-chat', label: '机器人对话', Icon: Bot, enabled: true, group: '集成' },
   // PR-UX-POLISH-1 commit 2 (yuejing UX audit msg `9c779b56`):
@@ -113,7 +114,7 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   // text, not web). Future Settings page wires per-engine credentials
   // for web-search providers; the sidebar's modal stays the
   // local-content search UI.
-  { id: 'search', label: '联网搜索', Icon: Search, enabled: true, comingSoon: true, group: '集成' },
+  { id: 'search', label: '联网搜索', Icon: Search, enabled: true, group: '集成' },
   { id: 'network', label: '网络', Icon: Globe, enabled: true, group: '集成' },
   // Group 4: 数据与账号
   { id: 'data', label: '数据', Icon: Database, enabled: true, group: '数据与账号' },
@@ -168,31 +169,6 @@ type ComingSoonCopy = {
 };
 
 const COMING_SOON_PAGES: Partial<Record<SettingsSection, ComingSoonCopy>> = {
-  'daily-review': {
-    Icon: CalendarDays,
-    headline: '每日回顾',
-    badge: 'V0.2 · opt-in · 本地汇总',
-    description:
-      '把当天的 Maka 会话、任务、工具调用本地聚合成一份精炼简报。整条管线默认关闭，上线后只读取 Maka 自己产生的数据。',
-    status: '当前尚未实现。V0.2 会以独立开关的形式上线，默认仍是关闭状态。',
-    willInclude: [
-      '把当天会话按时段 / 主题聚类，凸显已完成的决策与进展',
-      '汇总「使用统计」当天的 token / 费用，不重复算账',
-      '允许导出 Markdown / PDF，或推送到用户自配的 Telegram / 飞书 bot',
-      '生成简报时复用当前默认 provider 与代理设置，受权限策略约束',
-    ],
-    willNotDo: [
-      '不截屏、不监听键盘、不读取其他 App 的数据',
-      '不读取系统文件系统，只读取 Maka 自己的会话 JSONL',
-      '不向云端上传原始消息，只把生成简报所需的最小上下文交给所选模型',
-      '功能停止后不会偷偷继续聚合或保留临时索引',
-    ],
-    nextConfig: [
-      '未来在「每日回顾」内由用户显式选择运行节奏（每日 / 每周 / 每月）',
-      '选择用于摘要的模型 connection（建议本地 / 自部署模型）',
-      '可选：指定导出目录或推送 bot（Telegram / 飞书 webhook）',
-    ],
-  },
   'voice-models': {
     Icon: Volume2,
     headline: '语音模型',
@@ -216,61 +192,6 @@ const COMING_SOON_PAGES: Partial<Record<SettingsSection, ComingSoonCopy>> = {
       '未来在「语音模型」内由用户显式选择语音通道，并经由 macOS 系统获取麦克风权限',
       '选择 TTS / STT 的具体引擎与 connection',
       '可选：单独为语音通道指定代理、缓存目录或本地模型路径',
-    ],
-  },
-  'open-gateway': {
-    Icon: Sparkles,
-    headline: '开放网关',
-    badge: 'V0.2 · disabled-by-default · token-required · localhost-only',
-    description:
-      '把 Maka 当作本机的 OpenAI 兼容 API 暴露给其他工具（IDE / shell / 工作流引擎）。这是一个被严格收窄的本地网关：只代理模型调用，永远不暴露 Settings、tools、文件或 bot 控制权。',
-    status: '当前尚未实现。即使在 V0.2 上线后，默认状态仍是关闭，未来由用户显式发起。',
-    willInclude: [
-      '本机 :3939 暴露 OpenAI 兼容端点 (chat / models / health)',
-      '上线时生成一次性 gateway token，每个请求必须 Authorization: Bearer',
-      '默认仅 bind 127.0.0.1；LAN 绑定需要在 Settings 中单独确认',
-      '调用走当前默认 provider，复用 Maka 的凭据、代理与权限策略',
-      '所有调用进入「使用统计」聚合，方便对账',
-    ],
-    willNotDo: [
-      '没有 gateway token 配置时不会接受任何请求',
-      'token 不允许读写 Settings、调用 tools、读写文件、安装 skills、运行 bots',
-      'CORS * 不被接受：跨源域必须在 allow-list 中显式列出',
-      'provider readiness 失败时不会静默走 fake fallback，永远返回结构化 needs_configuration',
-      '日志不记 prompt / response / Authorization header；只记 status / latency / model alias / token hash / token counts',
-    ],
-    nextConfig: [
-      '未来在「开放网关」内由用户显式生成 gateway token，保存到使用方的 secret store',
-      '确认 bind 地址（127.0.0.1 或受信任的 LAN 网段）',
-      '为跨源工具指定 CORS allow-list',
-      '在所选默认 provider 的凭据完成 readiness 校验后再向外暴露',
-    ],
-  },
-  search: {
-    Icon: Search,
-    // PR-UX-POLISH-1 commit 2: same rename as nav label —
-    // 联网搜索 vs sidebar local-content search.
-    headline: '联网搜索',
-    badge: 'V0.2 · per-query opt-in · 走代理',
-    description:
-      '为助手提供外部搜索能力，自动按提问类型选择源。每条搜索都经过权限策略与代理路由，UI 上可以按引擎独立声明可用性。',
-    status: '当前尚未实现。Maka 不会主动联网搜索，所有搜索都需要由用户显式发起。',
-    willInclude: [
-      '主流引擎：Tavily / Brave Search / SerpAPI（自带凭据）',
-      '自托管选项：SearxNG、MetaSo、本地索引',
-      '查询缓存与隐私模式（含网络代理路由）',
-      '按引擎独立配置可用性，凭据通过连通性校验后才放行真实查询',
-    ],
-    willNotDo: [
-      '没有可用引擎时不会静默回退到默认搜索',
-      '不绕过 Settings 中指定的网络代理与超时',
-      '不保留查询原文与返回 body，只保留 query hash / 引擎 / latency',
-      '隐私模式下不写入会话 JSONL 以外的任何持久化存储',
-    ],
-    nextConfig: [
-      '未来在「搜索服务」内由用户逐个引擎填入凭据，先通过连通性校验再保存',
-      '选择代理路由策略（默认 / 直连 / 走 Maka 网络代理）',
-      '可选：切到隐私模式（不写缓存与日志）',
     ],
   },
 };
@@ -327,6 +248,12 @@ export function SettingsModal(props: {
    * ⌘K → "网络" jumps straight to the section without an extra click.
    */
   requestedSection?: SettingsSection;
+  /**
+   * PR-DAILY-REVIEW-MVP-0 follow-up: navigate to the sidebar's
+   * Daily Review module. Optional so the settings page degrades
+   * gracefully when the shell does not provide the jump.
+   */
+  onOpenDailyReview?(): void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   // Escape closes the modal, Tab/Shift+Tab cycles inside the dialog,
@@ -356,6 +283,7 @@ export function SettingsModal(props: {
           onToastPositionChange={props.onToastPositionChange}
           onUserLabelChange={props.onUserLabelChange}
           requestedSection={props.requestedSection}
+          onOpenDailyReview={props.onOpenDailyReview}
         />
       </div>
     </div>
@@ -375,6 +303,7 @@ function SettingsSurface(props: {
   onToastPositionChange(position: ToastPosition): void;
   onUserLabelChange?(label: string): void;
   requestedSection?: SettingsSection;
+  onOpenDailyReview?(): void;
 }) {
   const [section, setSection] = useState<SettingsSection>(() => props.requestedSection ?? readLastSettingsSection());
 
@@ -501,6 +430,7 @@ function SettingsSurface(props: {
               onThemeChange={props.onThemeChange}
               onDensityChange={props.onDensityChange}
               onToastPositionChange={props.onToastPositionChange}
+              onOpenDailyReview={props.onOpenDailyReview}
             />
           )}
         </div>
@@ -527,6 +457,7 @@ function SettingsPage(props: {
   onThemeChange(pref: ThemePreference): void;
   onDensityChange(density: UiDensity): void;
   onToastPositionChange(position: ToastPosition): void;
+  onOpenDailyReview?(): void;
 }) {
   switch (props.section) {
     case 'models':
@@ -558,6 +489,8 @@ function SettingsPage(props: {
       );
     case 'network':
       return <NetworkSettingsPage settings={props.settings} onUpdate={props.onUpdateSettings} />;
+    case 'open-gateway':
+      return <OpenGatewaySettingsPage settings={props.settings} onUpdate={props.onUpdateSettings} />;
     case 'about':
       return <AboutSettingsPage />;
     case 'general':
@@ -597,6 +530,15 @@ function SettingsPage(props: {
       return <PermissionCenterPage />;
     case 'health':
       return <HealthCenterPage />;
+    case 'daily-review':
+      return <DailyReviewSettingsPage onOpenDailyReview={props.onOpenDailyReview} />;
+    case 'search':
+      return (
+        <WebSearchSettingsPage
+          settings={props.settings}
+          onUpdate={props.onUpdateSettings}
+        />
+      );
     default: {
       const copy = COMING_SOON_PAGES[props.section];
       if (copy) {
@@ -752,6 +694,78 @@ function SettingsSkeleton() {
         <div className="maka-skeleton maka-skeleton-line" style={{ width: '48%' }} />
       </div>
     </div>
+  );
+}
+
+/**
+ * PR-DAILY-REVIEW-MVP-0 follow-up: Settings → 每日回顾 is no longer
+ * a Coming Soon page. The sidebar panel handles browsing/usage; this
+ * page summarizes what it does, the privacy boundary, and offers a
+ * one-click jump to the sidebar.
+ */
+function DailyReviewSettingsPage(props: { onOpenDailyReview?: () => void }) {
+  return (
+    <section className="settingsComingSoonPage" aria-label="每日回顾">
+      <header className="settingsComingSoonBanner" role="status">
+        <span className="settingsComingSoonBannerDot" aria-hidden="true" />
+        <strong>本地汇总 · 已上线</strong>
+        <span>读取本机 Maka 自己产生的会话与使用统计，不联网、不读其他 App 数据。</span>
+      </header>
+
+      <div className="settingsComingSoonHero">
+        <span className="settingsComingSoonIcon" aria-hidden="true">
+          <CalendarDays size={24} strokeWidth={1.5} />
+        </span>
+        <div>
+          <div className="settingsComingSoonHeroHeading">
+            <h3>每日回顾</h3>
+            <span className="settingsComingSoonBadge">V0.1 · 本地</span>
+          </div>
+          <p>
+            每日回顾会按你选择的日期，把当天的活跃会话、模型用量、工具调用聚合到一个面板里。
+            侧栏 "每日回顾" 入口可以左右切日，也可以点击会话直接打开。
+          </p>
+          {props.onOpenDailyReview && (
+            <button
+              type="button"
+              className="maka-button"
+              onClick={props.onOpenDailyReview}
+              style={{ marginTop: 8 }}
+            >
+              在侧栏打开每日回顾
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="settingsComingSoonHeroHeading">
+        <h3>当前包含</h3>
+      </div>
+      <ul className="settingsComingSoonList">
+        <li>对话数 / 请求数 / Token / 费用 / 错误数</li>
+        <li>当天活跃对话（点击可直接打开）</li>
+        <li>当天使用最频繁的模型 Top 8</li>
+        <li>当天调用最频繁的工具 Top 8</li>
+      </ul>
+
+      <div className="settingsComingSoonHeroHeading">
+        <h3>不会做的事</h3>
+      </div>
+      <ul className="settingsComingSoonList">
+        <li>不调用任何 LLM 生成摘要（V0.1 只是聚合数字，不向云端送内容）</li>
+        <li>不写入记忆系统，也不导出任何东西</li>
+        <li>不读取 Maka 工作区以外的文件</li>
+      </ul>
+
+      <div className="settingsComingSoonHeroHeading">
+        <h3>之后会加</h3>
+      </div>
+      <ul className="settingsComingSoonList">
+        <li>可选的 LLM 摘要 narrative（默认关闭、走当前默认 connection）</li>
+        <li>导出 Markdown / 推送到自配的 bot</li>
+        <li>每周 / 每月聚合视图</li>
+      </ul>
+    </section>
   );
 }
 
@@ -1139,7 +1153,7 @@ function ClaudeSubscriptionCard() {
             </div>
           )}
           <small className="settingsHelpText">
-            数据更新于 {new Date(state.quota.fetchedAt).toLocaleString()}
+            数据更新于 <RelativeTime ts={state.quota.fetchedAt} className="settingsHelpInlineTime" />
           </small>
         </div>
       )}
@@ -1281,9 +1295,9 @@ function AccountConnectionRow(props: {
   const authPresentation = presentAccountAuthState(authContract);
   const authActions = deriveAccountAuthActions(authContract);
   const subtitle = `${props.connection.providerType} · ${props.connection.defaultModel || '未设默认模型'}`;
-  const lastTestAt = props.connection.lastTestAt
-    ? new Date(props.connection.lastTestAt).toLocaleString()
-    : null;
+  const lastTestAtMs = props.connection.lastTestAt
+    ? Date.parse(props.connection.lastTestAt)
+    : NaN;
   const lastTestMessage = props.connection.lastTestMessage;
   return (
     <div
@@ -1316,10 +1330,12 @@ function AccountConnectionRow(props: {
           {authPresentation.stateLabel}
         </span>
       </div>
-      {(lastTestAt || lastTestMessage) && (
+      {(Number.isFinite(lastTestAtMs) || lastTestMessage) && (
         <p className="settingsConnectionMeta">
           {lastTestMessage && <span>{lastTestMessage}</span>}
-          {lastTestAt && <time dateTime={props.connection.lastTestAt}>{lastTestAt}</time>}
+          {Number.isFinite(lastTestAtMs) && (
+            <RelativeTime ts={lastTestAtMs} className="settingsConnectionMetaTime" />
+          )}
         </p>
       )}
       {authActions.length > 0 && (
@@ -1792,6 +1808,219 @@ function ThemeSettingsPage(props: {
   );
 }
 
+/**
+ * PR-WEB-SEARCH-TAVILY-0: Settings → 联网搜索.
+ *
+ * V0.1 supports Tavily only. Renderer never sees the cleartext API
+ * key — `props.settings.webSearch.providers.tavily.apiKey` arrives
+ * pre-masked from the IPC store boundary (the bullet sentinel
+ * `MASKED_TOKEN_SENTINEL`). Re-submitting the sentinel is treated as
+ * "keep current" in `mergeWebSearchSettings`.
+ *
+ * The "测试" button calls `web-search:test` (main-process Tavily call)
+ * and surfaces ok/fail via toast. The "试一下" demo runs a real query
+ * and renders 3-5 plain-text rows.
+ */
+function WebSearchSettingsPage(props: {
+  settings: AppSettings;
+  onUpdate(patch: Parameters<typeof window.maka.settings.update>[0]): Promise<UpdateAppSettingsResult>;
+}) {
+  const webSearch = props.settings.webSearch;
+  const tavilyKey = webSearch.providers.tavily.apiKey;
+  const [draftKey, setDraftKey] = useState('');
+  const [testing, setTesting] = useState(false);
+  const [demoQuery, setDemoQuery] = useState('');
+  const [demoRunning, setDemoRunning] = useState(false);
+  const [demoResults, setDemoResults] = useState<readonly { title: string; url: string; snippet: string; source: string }[] | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const toast = useToast();
+
+  async function setEnabled(enabled: boolean) {
+    await props.onUpdate({ webSearch: { enabled } });
+  }
+
+  async function saveDraftKey() {
+    if (draftKey.length === 0) return;
+    await props.onUpdate({
+      webSearch: { providers: { tavily: { apiKey: draftKey } } },
+    });
+    setDraftKey('');
+    toast.success('已保存 Tavily API key', '可点击「测试」做一次真实请求验证。');
+  }
+
+  async function clearKey() {
+    await props.onUpdate({
+      webSearch: { enabled: false, providers: { tavily: { apiKey: '' } } },
+    });
+    setDraftKey('');
+    toast.success('已清空 Tavily 凭据', '联网搜索已自动关闭。');
+  }
+
+  async function runTest() {
+    setTesting(true);
+    try {
+      const result = await window.maka.webSearch.test({
+        provider: 'tavily',
+        apiKey: draftKey.length > 0 ? draftKey : undefined,
+      });
+      if (result.ok) {
+        toast.success('Tavily 凭据可用', `返回 ${result.results.length} 条结果。`);
+      } else {
+        toast.error('Tavily 测试失败', result.message);
+      }
+    } catch (err) {
+      toast.error('Tavily 测试出错', err instanceof Error ? err.message : String(err));
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function runDemo() {
+    const trimmed = demoQuery.trim();
+    if (trimmed.length === 0) return;
+    setDemoRunning(true);
+    setDemoError(null);
+    setDemoResults(null);
+    try {
+      const result = await window.maka.webSearch.query({
+        provider: 'tavily',
+        query: trimmed,
+        limit: 5,
+      });
+      if (result.ok) {
+        setDemoResults(result.results);
+      } else {
+        setDemoError(result.message);
+      }
+    } catch (err) {
+      setDemoError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDemoRunning(false);
+    }
+  }
+
+  const hasStoredKey = tavilyKey.length > 0;
+
+  return (
+    <div className="settingsStructuredPage">
+      <div className="settingsFormRow">
+        <div>
+          <strong>启用联网搜索</strong>
+          <small>开关启用后，UI 里显式触发的查询才会真的请求 Tavily。Agent 不会自动调用。</small>
+        </div>
+        <Switch
+          checked={webSearch.enabled}
+          disabled={!hasStoredKey}
+          onChange={(enabled) => void setEnabled(enabled)}
+        />
+      </div>
+
+      <div className="settingsFormGrid">
+        <label>
+          <span>Tavily API key</span>
+          <input
+            type="password"
+            value={draftKey}
+            onChange={(event) => setDraftKey(event.currentTarget.value)}
+            placeholder={hasStoredKey ? '已保存（输入新 key 可替换）' : 'tvly-xxxxxxxx'}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <small>
+            存在主进程 settings 中，渲染器永远看不到明文。在 <a href="https://tavily.com" target="_blank" rel="noreferrer">tavily.com</a> 申请。
+          </small>
+        </label>
+      </div>
+
+      <div className="settingsFormRow" style={{ gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="maka-button"
+          disabled={draftKey.length === 0}
+          onClick={() => void saveDraftKey()}
+        >
+          保存 key
+        </button>
+        <button
+          type="button"
+          className="maka-button maka-button-ghost"
+          disabled={testing || (draftKey.length === 0 && !hasStoredKey)}
+          onClick={() => void runTest()}
+        >
+          {testing ? '测试中…' : '测试凭据'}
+        </button>
+        {hasStoredKey && (
+          <button
+            type="button"
+            className="maka-button maka-button-ghost"
+            onClick={() => void clearKey()}
+          >
+            清空 key
+          </button>
+        )}
+      </div>
+
+      <div className="settingsFormRow">
+        <div style={{ flex: 1 }}>
+          <strong>试一下</strong>
+          <small>直接发一条真实查询，看到 Tavily 返回的标题 / 摘要 / 来源域名。结果只显示在此页面，不写入会话也不入 telemetry。</small>
+        </div>
+      </div>
+      <div className="settingsFormGrid">
+        <label>
+          <span>查询</span>
+          <input
+            value={demoQuery}
+            onChange={(event) => setDemoQuery(event.currentTarget.value)}
+            placeholder="例如：electron safeStorage best practice"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !demoRunning) {
+                event.preventDefault();
+                void runDemo();
+              }
+            }}
+          />
+        </label>
+      </div>
+      <div>
+        <button
+          type="button"
+          className="maka-button"
+          disabled={demoRunning || demoQuery.trim().length === 0 || !webSearch.enabled || !hasStoredKey}
+          onClick={() => void runDemo()}
+        >
+          {demoRunning ? '搜索中…' : '搜索'}
+        </button>
+        {!webSearch.enabled && (
+          <small style={{ marginLeft: 12, color: 'var(--foreground-50)' }}>
+            先开关启用联网搜索
+          </small>
+        )}
+      </div>
+
+      {demoError && (
+        <div className="settingsConnectionMeta" role="alert">
+          <span>查询失败：{demoError}</span>
+        </div>
+      )}
+      {demoResults && demoResults.length === 0 && !demoError && (
+        <div className="settingsConnectionMeta">没有结果。</div>
+      )}
+      {demoResults && demoResults.length > 0 && (
+        <ul className="settingsWebSearchResults">
+          {demoResults.map((row, idx) => (
+            <li key={`${row.url}-${idx}`} className="settingsWebSearchResult">
+              <a href={row.url} target="_blank" rel="noreferrer">{row.title}</a>
+              <small>{row.source}</small>
+              <p>{row.snippet}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function NetworkSettingsPage(props: {
   settings: AppSettings;
   onUpdate(patch: Parameters<typeof window.maka.settings.update>[0]): Promise<UpdateAppSettingsResult>;
@@ -1899,6 +2128,185 @@ function NetworkSettingsPage(props: {
   );
 }
 
+function OpenGatewaySettingsPage(props: {
+  settings: AppSettings;
+  onUpdate(patch: Parameters<typeof window.maka.settings.update>[0]): Promise<UpdateAppSettingsResult>;
+}) {
+  const gateway = props.settings.openGateway;
+  const [status, setStatus] = useState<OpenGatewayRuntimeStatus | null>(null);
+  const [tokenDraft, setTokenDraft] = useState(gateway.token);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+    window.maka.gateway
+      .status()
+      .then((next) => {
+        if (!cancelled) setStatus(next);
+      })
+      .catch(() => {});
+    const unsubscribe = window.maka.gateway.subscribeStatusChanges((next) => {
+      if (!cancelled) setStatus(next);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    setTokenDraft(gateway.token);
+  }, [gateway.token]);
+
+  async function updateGateway(patch: Partial<AppSettings['openGateway']>) {
+    setSaving(true);
+    try {
+      await props.onUpdate({ openGateway: patch });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveToken(nextToken = tokenDraft.trim()) {
+    await updateGateway({ token: nextToken });
+    toast.success(nextToken ? '网关 token 已保存' : '网关 token 已清空');
+  }
+
+  async function generateToken() {
+    const token = generateGatewayToken();
+    setTokenDraft(token);
+    await updateGateway({ token });
+    toast.success('网关 token 已生成', '本机 API 需要 Authorization Bearer token。');
+  }
+
+  async function copyBaseUrl() {
+    const baseUrl = status?.baseUrl ?? gatewayBaseUrl(gateway.host, gateway.port);
+    await navigator.clipboard.writeText(baseUrl);
+    toast.success('已复制网关地址', baseUrl);
+  }
+
+  const baseUrl = status?.baseUrl ?? gatewayBaseUrl(gateway.host, gateway.port);
+  const state = presentGatewayStatus(status, gateway);
+
+  return (
+    <div className="settingsStructuredPage">
+      <div className="settingsUsageSummary" aria-label="开放网关状态">
+        <MetricCard title="状态" value={state.label} detail={state.detail} />
+        <MetricCard title="监听地址" value={baseUrl} detail={gateway.host === '0.0.0.0' ? '局域网可访问' : '仅本机'} />
+        <MetricCard title="访问凭据" value={gateway.token ? '已配置' : '未配置'} detail="Bearer token 保护所有 /v1 API" />
+        <MetricCard title="能力" value="4 个端点" detail="/health · sessions · search" />
+      </div>
+
+      <div className="settingsFormRow">
+        <div>
+          <strong>开放本机 API 网关</strong>
+          <small>启动一个本机 HTTP 服务，让外部工具读取会话、消息和本地搜索结果。</small>
+        </div>
+        <Switch checked={gateway.enabled} disabled={saving} onChange={(enabled) => updateGateway({ enabled })} />
+      </div>
+
+      <div className="settingsFormGrid settingsFormGridProxy">
+        <label>
+          <span>监听地址</span>
+          <select
+            value={gateway.host}
+            disabled={saving}
+            onChange={(event) => updateGateway({ host: event.currentTarget.value as AppSettings['openGateway']['host'] })}
+          >
+            <option value="127.0.0.1">127.0.0.1</option>
+            <option value="0.0.0.0">0.0.0.0</option>
+          </select>
+        </label>
+        <label>
+          <span>端口</span>
+          <input
+            value={String(gateway.port)}
+            disabled={saving}
+            inputMode="numeric"
+            onChange={(event) => updateGateway({ port: Number(event.currentTarget.value) || 3939 })}
+          />
+        </label>
+        <label>
+          <span>访问 token</span>
+          <input
+            type="password"
+            value={tokenDraft}
+            disabled={saving}
+            onChange={(event) => setTokenDraft(event.currentTarget.value)}
+            onBlur={() => {
+              if (tokenDraft !== gateway.token) void saveToken();
+            }}
+            placeholder="生成或输入 token"
+          />
+        </label>
+      </div>
+
+      {gateway.enabled && !gateway.token && (
+        <div className="settingsNotice" data-tone="passive">
+          网关已开启，但还没有 token。生成 token 后服务会自动启动。
+        </div>
+      )}
+      {status?.lastError && (
+        <div className="settingsNotice">
+          启动状态：{gatewayErrorCopy(status.lastError)}
+        </div>
+      )}
+
+      <div className="settingsActionRow">
+        <button className="maka-button" type="button" disabled={saving} onClick={() => void generateToken()}>
+          生成 token
+        </button>
+        <button className="maka-button secondary" type="button" disabled={!gateway.token || saving} onClick={() => void saveToken('')}>
+          清空 token
+        </button>
+        <button className="maka-button secondary" type="button" onClick={() => void copyBaseUrl()}>
+          复制地址
+        </button>
+      </div>
+
+      <SettingsRows>
+        <SettingRow title="健康检查" detail="不需要 token，用于确认网关进程是否启动。" value="GET /health" />
+        <SettingRow title="能力清单" detail="需要 Bearer token，返回当前开放的本机 API 能力。" value="GET /v1/capabilities" />
+        <SettingRow title="会话列表" detail="需要 Bearer token，返回本地 session summary。" value="GET /v1/sessions" />
+        <SettingRow title="会话消息" detail="需要 Bearer token，按 sessionId 读取本地消息。" value="GET /v1/sessions/:id/messages" />
+        <SettingRow title="本地搜索" detail="需要 Bearer token，复用 Maka 的 thread search。" value="GET /v1/search/thread?q=..." />
+      </SettingsRows>
+
+      <p className="settingsHelpText">
+        所有 /v1 接口只读且默认关闭。把监听地址设成 0.0.0.0 会让同一局域网设备可访问，请只在可信网络中使用。
+      </p>
+    </div>
+  );
+}
+
+function gatewayBaseUrl(host: AppSettings['openGateway']['host'], port: number): string {
+  return `http://${host}:${port}`;
+}
+
+function presentGatewayStatus(
+  status: OpenGatewayRuntimeStatus | null,
+  settings: AppSettings['openGateway'],
+): { label: string; detail: string } {
+  if (!settings.enabled) return { label: '已关闭', detail: 'Settings 开关关闭' };
+  if (!settings.token) return { label: '未启动', detail: '缺少访问 token' };
+  if (!status) return { label: '读取中', detail: '正在读取运行状态' };
+  if (status.running) return { label: '运行中', detail: status.startedAt ? '本机 API 已启动' : '服务已监听' };
+  return { label: '启动失败', detail: gatewayErrorCopy(status.lastError ?? 'gateway_start_failed') };
+}
+
+function gatewayErrorCopy(error: string): string {
+  if (error === 'missing_token') return '缺少访问 token';
+  if (error.includes('EADDRINUSE')) return '端口已被占用';
+  return error;
+}
+
+function generateGatewayToken(): string {
+  const bytes = new Uint8Array(24);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
 function toProxyTestInput(proxy: NetworkProxySettings): TestProxyInput {
   return {
     proxy: {
@@ -1953,16 +2361,21 @@ function BotChatSettingsPage(props: {
       const result = await window.maka.settings.testBotChannel(selected);
       const platform = BOT_LABELS[selected].label;
       if (result.ok) {
-        toast.success(`${platform} 连接成功`, result.message);
+        // PR-BOT-CHAT-POLISH-0: title now matches kenji boundary 2's
+        // 5-state readiness chain — a successful test PROVES
+        // `credentials_valid`, NOT `operational`. The detail copy
+        // still carries the IPC-side message so the user can see
+        // latency / identity etc.
+        toast.success(`${platform} 凭据已验证`, result.message);
       } else {
-        toast.error(`${platform} 连接失败`, result.message);
+        toast.error(`${platform} 凭据测试失败`, result.message);
       }
       await props.onReload();
       const nextStatuses = await window.maka.settings.bots.listStatuses();
       setStatuses(nextStatuses);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      toast.error('Bot 测试出错', message);
+      toast.error(`${BOT_LABELS[selected].label} 测试出错`, message);
     } finally {
       setTesting(false);
     }
@@ -1976,10 +2389,19 @@ function BotChatSettingsPage(props: {
         ...(current ?? ({} as Record<BotProvider, BotStatus>)),
         [status.platform]: status,
       }));
-      toast.success(`${BOT_LABELS[selected].label} 已重新启动`, botStatusDetail(status));
+      // PR-BOT-CHAT-POLISH-0: tone follows actual runtime state, not
+      // the bare fact that the restart command returned. A restarted
+      // bot that immediately stops (e.g. token rejected, network
+      // down) was previously surfaced as a green success toast.
+      const platform = BOT_LABELS[selected].label;
+      if (status.running) {
+        toast.success(`${platform} 已开始监听`, botStatusDetail(status));
+      } else {
+        toast.error(`${platform} 启动后未进入监听`, botStatusDetail(status));
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      toast.error('机器人启动失败', message);
+      toast.error(`${BOT_LABELS[selected].label} 启动失败`, message);
     } finally {
       setRestarting(false);
     }
@@ -1994,11 +2416,28 @@ function BotChatSettingsPage(props: {
       <nav className="settingsBotList" aria-label="机器人频道列表">
         {BOT_PROVIDERS.map((provider) => {
           const status = statuses?.[provider];
-          const providerCopy = BOT_READINESS_COPY[status?.readiness ?? props.settings.botChat.channels[provider].readiness] ?? BOT_READINESS_COPY.scaffolded;
+          const providerSupport = BOT_LABELS[provider].support;
+          // PR-PLACEHOLDER-SWEEP-0: planned platforms render a single
+          // "未接入" tag instead of the credentials-flow readiness
+          // states. The credentials chain doesn't apply when there's
+          // no runtime to be valid against — showing "未配置" would be
+          // misleading.
+          const providerCopy =
+            providerSupport === 'planned'
+              ? { label: '未接入', tone: 'neutral' as const }
+              : BOT_READINESS_COPY[
+                  status?.readiness ?? props.settings.botChat.channels[provider].readiness
+                ] ?? BOT_READINESS_COPY.scaffolded;
           return (
-            <button key={provider} type="button" data-active={selected === provider} onClick={() => {
-              setSelected(provider);
-            }}>
+            <button
+              key={provider}
+              type="button"
+              data-active={selected === provider}
+              data-support={providerSupport}
+              onClick={() => {
+                setSelected(provider);
+              }}
+            >
               <span className="settingsBotLogo">{BOT_LABELS[provider].label.slice(0, 2)}</span>
               <span>{BOT_LABELS[provider].label}</span>
               <em data-tone={providerCopy.tone}>{providerCopy.label}</em>
@@ -2080,11 +2519,43 @@ function BotChatSettingsPage(props: {
           </div>
           <div>
             <dt>最近事件</dt>
-            <dd>{selectedStatus?.lastEventAt ? new Date(selectedStatus.lastEventAt).toLocaleString() : '暂无'}</dd>
+            <dd>
+              {selectedStatus?.lastEventAt ? (
+                <RelativeTime
+                  ts={selectedStatus.lastEventAt}
+                  className="settingsBotMetaTime"
+                />
+              ) : (
+                '暂无'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>最近一次测试</dt>
+            <dd>
+              {channel.lastTestAt ? (
+                <RelativeTime
+                  ts={channel.lastTestAt}
+                  className="settingsBotMetaTime"
+                />
+              ) : (
+                '从未测试'
+              )}
+            </dd>
           </div>
         </dl>
 
         {selectedStatus?.reason && <div className="settingsBotReason">{botStatusDetail(selectedStatus)}</div>}
+
+        {/* PR-BOT-CHAT-POLISH-0: surface the last persisted test error
+            so the user does not have to remember the toast that just
+            faded out. `channel.lastError` is written by the IPC test
+            handler regardless of why the test failed. */}
+        {channel.lastError && support !== 'planned' && (
+          <div className="settingsBotReason" data-tone="error" role="alert">
+            上次测试失败：{channel.lastError}
+          </div>
+        )}
 
         <div className="settingsActionRow">
           <button className="maka-button" type="button" disabled={testing || support === 'planned'} onClick={testChannel}>
@@ -2118,7 +2589,11 @@ function botStatusDetail(status: BotStatus): string {
     case 'scaffold-only': return '平台入口已保留，运行时尚未接入';
     case 'unimplemented': return '平台运行时尚未接入';
     case 'stopped': return '监听已停止';
-    default: return status.reason ?? '暂无运行细节';
+    // PR-BOT-CHAT-POLISH-0: the previous fallback `status.reason ??
+    // '暂无运行细节'` would surface a raw reason code (e.g.
+    // `polling-timeout`) for any unmapped state. That's noise the
+    // user can't act on; collapse to a generalized copy.
+    default: return '运行态详情请见日志';
   }
 }
 
@@ -2373,7 +2848,7 @@ function PermissionCenterPage() {
     );
   }
 
-  const checkedAtLabel = new Date(capabilities.checkedAt).toLocaleString();
+  const checkedAtMs = capabilities.checkedAt;
 
   return (
     <div className="settingsPermissionPage">
@@ -2387,7 +2862,9 @@ function PermissionCenterPage() {
         </div>
         <div className="settingsPermissionMeta">
           <span className="pill" data-tone="info">只读快照</span>
-          <small>最近一次读取：{checkedAtLabel}</small>
+          <small>
+            最近一次读取：<RelativeTime ts={checkedAtMs} className="settingsHelpInlineTime" />
+          </small>
           <button
             type="button"
             className="settingsPermissionRefresh"
@@ -2703,7 +3180,7 @@ function HealthCenterPage() {
     );
   }
 
-  const checkedAtLabel = new Date(snapshot.checkedAt).toLocaleString();
+  const healthCheckedAtMs = snapshot.checkedAt;
   const signalsByLayer = groupSignalsByLayer(snapshot.signals);
   const blocksSendCount = snapshot.signals.filter((signal) => signal.blocksSend).length;
   const blocksCapabilityCount = snapshot.signals.filter((signal) => signal.blocksCapability).length;
@@ -2720,7 +3197,9 @@ function HealthCenterPage() {
         </div>
         <div className="settingsHealthMeta">
           <span className="pill" data-tone="info">只读快照</span>
-          <small>最近一次读取：{checkedAtLabel}</small>
+          <small>
+            最近一次读取：<RelativeTime ts={healthCheckedAtMs} className="settingsHelpInlineTime" />
+          </small>
           <button
             type="button"
             className="settingsHealthRefresh"
@@ -2797,7 +3276,6 @@ function HealthSummaryTile(props: {
 function HealthSignalRow(props: { signal: HealthSignal }) {
   const { signal } = props;
   const statusCopy = HEALTH_STATUS_COPY[signal.status];
-  const checkedAtLabel = new Date(signal.checkedAt).toLocaleString();
   return (
     <li className="settingsHealthSignalRow" data-status={signal.status}>
       <div className="settingsHealthSignalHeader">
@@ -2811,7 +3289,9 @@ function HealthSignalRow(props: { signal: HealthSignal }) {
       {signal.detail && <small className="settingsHealthSignalDetail">{signal.detail}</small>}
       <div className="settingsHealthSignalMeta">
         <span>source: <code>{signal.source}</code></span>
-        <span>checked: {checkedAtLabel}</span>
+        <span>
+          checked: <RelativeTime ts={signal.checkedAt} className="settingsHelpInlineTime" />
+        </span>
         {signal.blocksSend && <span className="settingsHealthSignalBlocker" data-tone="destructive">阻塞发送</span>}
         {signal.blocksCapability && <span className="settingsHealthSignalBlocker" data-tone="warning">阻塞能力</span>}
       </div>

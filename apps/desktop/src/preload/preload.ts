@@ -38,10 +38,14 @@ import type {
   RetryTurnInput,
   TurnRecord,
   PermissionSnapshot,
+  OpenGatewayRuntimeStatus,
   AuthorizationUrlPayload,
   SubscriptionAccountState,
   SubscriptionActionResult,
   PlanReminder,
+  DailyReviewSummary,
+  WebSearchProvider,
+  WebSearchResponse,
 } from '@maka/core';
 import type {
   PricingConfig,
@@ -228,6 +232,16 @@ contextBridge.exposeInMainWorld('maka', {
       return ipcRenderer.invoke('search:thread', request);
     },
   },
+  gateway: {
+    status(): Promise<OpenGatewayRuntimeStatus> {
+      return ipcRenderer.invoke('gateway:status');
+    },
+    subscribeStatusChanges(handler: (status: OpenGatewayRuntimeStatus) => void): () => void {
+      const listener = (_event: Electron.IpcRendererEvent, payload: OpenGatewayRuntimeStatus) => handler(payload);
+      ipcRenderer.on('gateway:statusChanged', listener);
+      return () => ipcRenderer.off('gateway:statusChanged', listener);
+    },
+  },
   // PR-OAUTH-SUBSCRIPTION-0: Claude subscription OAuth bridge.
   // NEVER returns raw OAuth credentials; renderer only sees account
   // state + quota + action results (xuan G-X3 + the
@@ -347,6 +361,24 @@ contextBridge.exposeInMainWorld('maka', {
     },
     resetPricing(modelKey: string): Promise<Result<void>> {
       return ipcRenderer.invoke('usage:pricing:reset', modelKey);
+    },
+  },
+  dailyReview: {
+    day(offsetDays: number): Promise<Result<DailyReviewSummary>> {
+      return ipcRenderer.invoke('daily-review:day', { offsetDays });
+    },
+  },
+  webSearch: {
+    query(input: {
+      query: string;
+      limit?: number;
+      provider?: WebSearchProvider;
+      apiKey?: string;
+    }): Promise<WebSearchResponse> {
+      return ipcRenderer.invoke('web-search:query', input);
+    },
+    test(input: { provider?: WebSearchProvider; apiKey?: string }): Promise<WebSearchResponse> {
+      return ipcRenderer.invoke('web-search:test', input);
     },
   },
   appWindow: {

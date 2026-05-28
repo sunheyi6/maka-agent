@@ -37,10 +37,14 @@ import type {
   RetryTurnInput,
   TurnRecord,
   PermissionSnapshot,
+  OpenGatewayRuntimeStatus,
   AuthorizationUrlPayload,
   SubscriptionAccountState,
   SubscriptionActionResult,
   PlanReminder,
+  DailyReviewSummary,
+  WebSearchProvider,
+  WebSearchResponse,
 } from '@maka/core';
 import type {
   PricingConfig,
@@ -150,6 +154,10 @@ declare global {
           | { ok: false; reason: SearchErrorReason; message: string }
         >;
       };
+      gateway: {
+        status(): Promise<OpenGatewayRuntimeStatus>;
+        subscribeStatusChanges(handler: (status: OpenGatewayRuntimeStatus) => void): () => void;
+      };
       claudeSubscription: {
         isExperimentalEnabled(): Promise<boolean>;
         getAuthUrl(): Promise<AuthorizationUrlPayload | SubscriptionActionResult>;
@@ -185,6 +193,18 @@ declare global {
         listPricing(): Promise<Result<PricingConfig[]>>;
         putPricing(pricing: PricingConfig): Promise<Result<PricingConfig>>;
         resetPricing(modelKey: string): Promise<Result<void>>;
+      };
+      webSearch: {
+        query(input: {
+          query: string;
+          limit?: number;
+          provider?: WebSearchProvider;
+          apiKey?: string;
+        }): Promise<WebSearchResponse>;
+        test(input: { provider?: WebSearchProvider; apiKey?: string }): Promise<WebSearchResponse>;
+      };
+      dailyReview: {
+        day(offsetDays: number): Promise<Result<DailyReviewSummary>>;
       };
       appWindow: {
         subscribeOpenSettings(handler: () => void): () => void;

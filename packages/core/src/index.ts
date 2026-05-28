@@ -478,6 +478,8 @@ export type {
   BotReadinessState,
   NetworkProxySettings,
   NetworkSettings,
+  OpenGatewaySettings,
+  OpenGatewayRuntimeStatus,
   ProxyProtocol,
   SettingsSection,
   SettingsTestResult,
@@ -532,3 +534,51 @@ export type {
   UsageQuery,
   UsageSummaryV2,
 } from './usage-stats/types.js';
+
+export {
+  formatRelativeTimestamp,
+  nextRelativeRefreshDelay,
+  resetRelativeTimeFormatters,
+} from './relative-time.js';
+
+// daily-review.ts (PR-DAILY-REVIEW-MVP-0)
+export type {
+  DailyReviewSessionRow,
+  DailyReviewSummary,
+  DailyReviewTopEntry,
+  DailyReviewTotals,
+  DayRangeMs,
+} from './daily-review.js';
+export {
+  DAILY_REVIEW_LIST_LIMIT,
+  buildDailyReviewSummary,
+  dailyUsageQuery,
+  localDayBoundsAt,
+  localDayBoundsForInstant,
+  pickDailyReviewSessions,
+  pickDailyReviewTopEntries,
+} from './daily-review.js';
+
+// web-search.ts (PR-WEB-SEARCH-TAVILY-0) — explicit user-triggered
+// web search contract. Renderer never sees the API key.
+export type {
+  WebSearchErrorReason,
+  WebSearchProvider,
+  WebSearchProviderSettings,
+  WebSearchResponse,
+  WebSearchResultRow,
+  WebSearchSettings,
+} from './web-search.js';
+export {
+  MASKED_TOKEN_SENTINEL,
+  WEB_SEARCH_DEFAULT_LIMIT,
+  WEB_SEARCH_MAX_LIMIT,
+  WEB_SEARCH_PROVIDERS,
+  WEB_SEARCH_QUERY_MAX_CHARS,
+  defaultWebSearchSettings,
+  isWebSearchProvider,
+  maskedTokenForDisplay,
+  normalizeWebSearchLimit,
+  normalizeWebSearchQuery,
+  reconcileMaskedToken,
+} from './web-search.js';
