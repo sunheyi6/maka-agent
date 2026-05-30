@@ -2405,9 +2405,9 @@ function MemorySettingsPage(props: {
       if (next.status === 'safe_mode') {
         toast.error('保存被拦截', 'MEMORY.md 内容过大，已进入安全模式。');
       } else if (redacted) {
-        toast.success('已保存并遮蔽敏感字段', '写入前已替换疑似 token、API key 或密码。');
+        toast.success('已保存并遮蔽敏感字段', `写入前已替换疑似 token、API key 或密码；${formatLocalMemorySaveSummary(next)}`);
       } else {
-        toast.success('已保存 MEMORY.md', '写入本地文件并保留上一版备份。');
+        toast.success('已保存 MEMORY.md', formatLocalMemorySaveSummary(next));
       }
     } finally {
       setBusy(false);
@@ -2550,6 +2550,12 @@ function MemorySettingsPage(props: {
           toast.error('无法更新记忆', 'MEMORY.md 超出安全上限，请先删减旧内容。');
           return;
       }
+    }
+
+    if (memoryDraftDirty) {
+      setDraft(result.draft);
+      toast.success(status === 'archived' ? '已在草稿中归档记忆' : '已在草稿中恢复记忆', '确认文件内容后点击保存。');
+      return;
     }
 
     setBusy(true);
@@ -2999,6 +3005,11 @@ function memoryEntryStatusLabel(status: LocalMemoryState['entries'][number]['sta
     case 'active': return '生效';
     case 'archived': return '已归档';
   }
+}
+
+function formatLocalMemorySaveSummary(state: LocalMemoryState): string {
+  const archived = state.archivedEntryCount > 0 ? ` / ${state.archivedEntryCount} 条已归档` : '';
+  return `当前 ${state.activeEntryCount} 条生效${archived}；已保留上一版备份。`;
 }
 
 function memoryStatusLabel(status: LocalMemoryState['status']): string {

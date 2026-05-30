@@ -165,6 +165,19 @@ describe('local MEMORY.md Settings UI contract', () => {
     assert.match(src, /window\.maka\.memory\.save\(result\.draft\)/);
   });
 
+  it('keeps archive and restore draft-only when MEMORY.md has unsaved edits', async () => {
+    const src = await readRepo('apps/desktop/src/renderer/settings/SettingsModal.tsx');
+    const updateBlock = src.match(/async function updateMemoryEntryStatus[\s\S]*?\n  }\n\n  const effective =/)?.[0] ?? '';
+
+    assert.match(updateBlock, /if \(memoryDraftDirty\) \{/);
+    assert.match(updateBlock, /setDraft\(result\.draft\)/);
+    assert.match(updateBlock, /已在草稿中归档记忆/);
+    assert.match(updateBlock, /已在草稿中恢复记忆/);
+    assert.match(updateBlock, /确认文件内容后点击保存/);
+    assert.match(updateBlock, /return;\n    }\n\n    setBusy\(true\)/);
+    assert.match(updateBlock, /window\.maka\.memory\.save\(result\.draft\)/);
+  });
+
   it('uses stopped-update copy for invalid memory entry ids instead of raw missing-field wording', async () => {
     const src = await readRepo('apps/desktop/src/renderer/settings/SettingsModal.tsx');
 
@@ -187,6 +200,19 @@ describe('local MEMORY.md Settings UI contract', () => {
     assert.match(pageBlock, /草稿含疑似敏感字段/);
     assert.match(pageBlock, /保存时会先遮蔽疑似 token、API key 或密码，再写入 MEMORY\.md/);
     assert.match(css, /\.settingsMemoryDraftWarning/);
+  });
+
+  it('summarizes parsed memory entry counts after save', async () => {
+    const src = await readRepo('apps/desktop/src/renderer/settings/SettingsModal.tsx');
+    const saveBlock = src.match(/async function save\(\) \{[\s\S]*?\n  \}\n\n  async function reset/)?.[0] ?? '';
+
+    assert.match(src, /function formatLocalMemorySaveSummary\(state: LocalMemoryState\)/);
+    assert.match(src, /state\.activeEntryCount/);
+    assert.match(src, /state\.archivedEntryCount > 0/);
+    assert.match(src, /当前 \$\{state\.activeEntryCount\} 条生效/);
+    assert.match(src, /已保留上一版备份/);
+    assert.match(saveBlock, /formatLocalMemorySaveSummary\(next\)/);
+    assert.match(saveBlock, /已保存并遮蔽敏感字段/);
   });
 
   it('shows whether the visible MEMORY.md draft has unsaved changes', async () => {
