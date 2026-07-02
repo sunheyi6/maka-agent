@@ -46,7 +46,7 @@
        the neighboring alert badge and toolbar icon buttons instead of
        towering over them. */
     padding: 1px 7px;
-    border-radius: var(--radius-pill);)
+    border-radius: var(--radius-pill);
     border: 1px solid transparent;
     font-size: 11px;
     font-weight: 600;
@@ -135,7 +135,7 @@
   transition:
     transform var(--duration-emphasized) var(--ease-out-strong),
     opacity var(--duration-emphasized) var(--ease-out-strong),
-    background 120ms ease;
+    background 120ms var(--ease-out-strong);
   }
 
   .maka-chat-jump-bottom:hover {
