@@ -24,6 +24,11 @@
   --maka-sidebar-topbar-gap: 8px;
   --maka-sidebar-topbar-offset-y: calc(var(--maka-titlebar-control-safe-top) - 18px);
   --maka-sidebar-topbar-offset-x: calc(var(--maka-titlebar-control-safe-left) - 10px);
+  --maka-sidebar-collapsed-topbar-inset: calc(
+    var(--maka-sidebar-topbar-offset-x) + var(--maka-sidebar-topbar-button-size) +
+      var(--maka-sidebar-topbar-button-size) + var(--maka-sidebar-topbar-button-size) +
+      var(--maka-sidebar-topbar-gap) + var(--maka-sidebar-topbar-gap) + 8px
+  );
   position: relative;
   display: grid;
   grid-template-columns:
@@ -298,7 +303,7 @@
 }
 .maka-search-modal-title {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
   color: var(--foreground);
 }
@@ -308,7 +313,7 @@
   border: 0;
   background: transparent;
   color: var(--foreground-60);
-  font-size: 16px;
+  font-size: 1.0667em;
   line-height: 1;
   border-radius: var(--radius-control);
 }
@@ -339,7 +344,7 @@
 .maka-search-modal-input {
   width: 100%;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   line-height: 1.4;
 }
 .maka-search-modal-input::placeholder {
@@ -374,7 +379,7 @@
 }
 .maka-search-modal-placeholder {
   margin: 14px 8px;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   color: var(--foreground-50);
   text-align: center;
 }
@@ -389,18 +394,18 @@
   margin: 6px 4px;
 }
 .maka-search-modal-state[data-tone="info"] {
-  background: oklch(from var(--info, var(--accent)) l c h / 0.06);
+  background: oklch(from var(--info, var(--status-running)) l c h / 0.06);
 }
 .maka-search-modal-state[data-tone="warning"] {
   background: oklch(from var(--warning, var(--info)) l c h / 0.08);
 }
 .maka-search-modal-state p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   color: var(--foreground);
 }
 .maka-search-modal-state .maka-search-modal-state-detail {
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   color: var(--foreground-60);
 }
 
@@ -410,7 +415,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 0 6px 6px;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   color: var(--foreground-50);
 }
 
@@ -440,20 +445,20 @@
   transform: translateX(1px);
 }
 .maka-search-modal-result[data-active="true"]:not([disabled]) {
-  background: oklch(from var(--accent) l c h / 0.08);
-  box-shadow: inset 2px 0 0 var(--accent);
+  background: oklch(from var(--nav-active) l c h / 0.08);
+  box-shadow: inset 2px 0 0 var(--nav-active);
 }
 .maka-search-modal-result:focus-visible {
   outline: none;
   background: oklch(from var(--foreground) l c h / 0.04);
-  box-shadow: 0 0 0 2px oklch(from var(--accent) l c h / 0.18);
+  box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.18);
 }
 .maka-search-modal-result[disabled] {
   cursor: default;
   opacity: 0.7;
 }
 .maka-search-modal-result-title {
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
   color: var(--foreground);
   overflow: hidden;
@@ -461,14 +466,14 @@
   white-space: nowrap;
 }
 .maka-search-modal-result-meta {
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   color: var(--foreground-40);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .maka-search-modal-result-snippet {
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   color: var(--foreground-60);
   line-height: 1.45;
   /* Plain text snippet — backend redacts secrets + bounds to
@@ -481,7 +486,7 @@
 }
 .maka-search-modal-snippet-hit {
   color: var(--foreground);
-  background: oklch(from var(--accent) l c h / 0.14);
+  background: oklch(from var(--link) l c h / 0.14);
   border-radius: var(--radius-control);
   padding: 0 2px;
 }
@@ -491,11 +496,14 @@
   gap: 5px;
   padding: 6px 6px 7px;
   border-bottom: 0;
-  -webkit-app-region: drag;
 }
 
 .maka-sidebar-drag-strip {
   min-height: 34px;
+  margin-left: calc(
+    var(--maka-sidebar-topbar-offset-x) + var(--maka-sidebar-topbar-button-size) +
+      var(--maka-sidebar-topbar-button-size) + var(--maka-sidebar-topbar-gap) + 8px
+  );
   box-sizing: border-box;
   -webkit-app-region: drag;
 }
@@ -612,7 +620,7 @@
   justify-content: center;
   border-radius: var(--radius-pill);
   padding: 0 4px;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-variant-numeric: tabular-nums;
 }
 
@@ -671,7 +679,7 @@
   gap: 3px;
   padding: 0 6px 3px;
   color: var(--foreground-50);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -847,19 +855,19 @@
   background: transparent;
   color: var(--foreground);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
   outline: 0;
   padding: 1px 0;
-  border-bottom: 1px solid oklch(from var(--accent) l c h / 0.4);
+  border-bottom: 1px solid oklch(from var(--focus-ring) l c h / 0.4);
 }
 
 .maka-list-row-rename-input:focus {
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--focus-ring);
 }
 
 .maka-list-row[data-editing="true"] {
-  border-color: oklch(from var(--accent) l c h / 0.45);
+  border-color: oklch(from var(--focus-ring) l c h / 0.45);
   background: var(--background);
 }
 
@@ -872,8 +880,8 @@
 }
 
 .maka-list-row:has(.maka-list-row-main:focus-visible) {
-  border-color: oklch(from var(--accent) l c h / 0.4);
-  box-shadow: 0 0 0 2px oklch(from var(--accent) l c h / 0.18);
+  border-color: oklch(from var(--focus-ring) l c h / 0.4);
+  box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.18);
 }
 
 .maka-prompt-suggestions {
@@ -913,8 +921,8 @@
 }
 
 .maka-prompt-chip:hover {
-  border-color: oklch(from var(--accent) l c h / 0.32);
-  background: oklch(from var(--accent) l c h / 0.04);
+  border-color: oklch(from var(--nav-active) l c h / 0.32);
+  background: oklch(from var(--nav-active) l c h / 0.04);
   transform: translateY(-1px);
 }
 
@@ -924,13 +932,13 @@
 
 .maka-prompt-chip-label {
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
 }
 
 .maka-prompt-chip-hint {
   color: var(--foreground-60);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.45;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -952,7 +960,7 @@
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-surface);
-  background: oklch(from var(--accent) l c h / 0.035);
+  background: oklch(from var(--focus-ring) l c h / 0.035);
   padding: 10px;
 }
 
@@ -960,14 +968,14 @@
   display: block;
   margin: 0 0 4px;
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 700;
 }
 
 .maka-deep-research-workflow-body {
   display: block;
   color: var(--foreground-60);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.45;
 }
 
@@ -987,7 +995,7 @@
 .maka-deep-research-progress h2 {
   margin: 0;
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   line-height: 1.3;
 }
 
@@ -1018,7 +1026,7 @@
 .maka-deep-research-evidence-title,
 .maka-deep-research-progress-title {
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1029,6 +1037,6 @@
 .maka-deep-research-progress-body {
   min-width: 0;
   color: var(--foreground-60);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.45;
 }

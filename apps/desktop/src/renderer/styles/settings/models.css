@@ -37,7 +37,7 @@
 .enabledProviderTrigger:hover { background: var(--hover); }
 
 .enabledProviderName {
-  font-size: 13.5px;
+  font-size: var(--font-size-ui);
   font-weight: 620;
   letter-spacing: -0.002em;
   min-width: 0;
@@ -71,7 +71,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   white-space: nowrap;
   color: var(--foreground-50);
 }
@@ -109,7 +109,7 @@
 }
 
 .enabledConnRow[data-default="true"] {
-  background: oklch(from var(--accent) l c h / 0.07);
+  background: oklch(from var(--control) l c h / 0.07);
 }
 
 .enabledConnRow[data-disabled="true"] {
@@ -123,10 +123,10 @@
 }
 
 .enabledDefaultTag {
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 650;
-  color: var(--accent);
-  background: oklch(from var(--accent) l c h / 0.14);
+  color: var(--nav-active);
+  background: oklch(from var(--nav-active) l c h / 0.14);
   border-radius: var(--radius-pill);
   padding: 1px 8px;
 }
@@ -162,9 +162,9 @@
 }
 
 .catalogPillTabs button[data-active="true"] {
-  border-color: oklch(from var(--accent) l c h / 0.22);
-  background: oklch(from var(--accent) l c h / 0.13);
-  color: var(--accent);
+  border-color: oklch(from var(--nav-active) l c h / 0.22);
+  background: oklch(from var(--nav-active) l c h / 0.13);
+  color: var(--nav-active);
 }
 
 /* Base UI's Tabs renders a sliding rounded-md indicator behind the active
@@ -176,7 +176,7 @@
 }
 
 .catalogPillTabs strong {
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 700;
 }
 
@@ -268,12 +268,12 @@
 .customProviderEntry button {
   flex: 0 0 auto;
   min-height: 36px;
-  border: 1px dashed oklch(from var(--accent) l c h / 0.34);
+  border: 1px dashed oklch(from var(--link) l c h / 0.34);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--accent);
+  color: var(--link);
   padding: 0 14px;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 700;
 }
 
@@ -371,7 +371,7 @@
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--font-size-base);
   line-height: 1;
 }
 
@@ -393,7 +393,7 @@
   border-radius: var(--radius-control);
   background: var(--surface, var(--background));
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
 }
 
 .maka-browser-strip {
@@ -467,12 +467,12 @@
 
 .maka-artifact-pane-collapse:focus-visible {
   outline: none;
-  border-color: oklch(from var(--accent) l c h / 0.42);
-  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.14);
+  border-color: oklch(from var(--focus-ring) l c h / 0.42);
+  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
 }
 
 .maka-artifact-pane-title {
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -480,7 +480,7 @@
 }
 
 .maka-artifact-pane-count {
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   padding: 0 5px;
   border-radius: var(--radius-pill);
   background: oklch(from var(--foreground) l c h / 0.05);
@@ -499,7 +499,7 @@
   border-radius: var(--radius-surface);
   background: oklch(from var(--warning) l c h / 0.08);
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
 }
 
 .maka-artifact-list-error svg {
@@ -509,7 +509,7 @@
 .maka-artifact-list-error strong {
   display: block;
   margin-bottom: 2px;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
 }
 
@@ -529,7 +529,7 @@
   border-radius: var(--radius-surface);
   background: var(--background);
   color: var(--foreground);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
 }
 
 .maka-artifact-error-retry:hover {
@@ -551,8 +551,8 @@
 
 .maka-artifact-error-retry:focus-visible {
   outline: none;
-  border-color: oklch(from var(--accent) l c h / 0.42);
-  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.14);
+  border-color: oklch(from var(--focus-ring) l c h / 0.42);
+  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
 }
 
 .maka-artifact-list {
@@ -591,7 +591,7 @@
   background: transparent;
   color: var(--foreground);
   text-align: left;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   transition:
     background 140ms var(--ease-out-strong),
     border-color 140ms var(--ease-out-strong),
@@ -607,8 +607,8 @@
 }
 
 .maka-artifact-row[data-selected="true"] {
-  background: oklch(from var(--accent) l c h / 0.10);
-  border-color: oklch(from var(--accent) l c h / 0.24);
+  background: oklch(from var(--nav-active) l c h / 0.10);
+  border-color: oklch(from var(--nav-active) l c h / 0.24);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -628,7 +628,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent);
+  color: var(--link);
 }
 
 .maka-artifact-row-name {
@@ -643,7 +643,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 1px;
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   color: oklch(from var(--foreground) l c h / 0.62);
   font-variant-numeric: tabular-nums;
 }
@@ -670,24 +670,24 @@
   align-items: center;
   justify-content: center;
   color: oklch(from var(--foreground) l c h / 0.5);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-artifact-preview-empty {
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-artifact-preview-file {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   line-height: 1.45;
 }
 
 .maka-artifact-preview-diff {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-artifact-preview-html {
@@ -708,7 +708,7 @@
 }
 
 .maka-artifact-preview-external-links-bar {
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   padding: 4px 6px;
   border-radius: var(--radius-control);
   background: oklch(from var(--info) l c h / 0.10);
@@ -753,14 +753,14 @@
 }
 
 .maka-artifact-preview-unsupported-title {
-  font-size: 0.95rem;
+  font-size: var(--font-size-ui);
   font-weight: 600;
   color: var(--foreground);
 }
 
 .maka-artifact-preview-unsupported-body {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-ui);
   line-height: 1.55;
   color: var(--foreground-70);
 }
@@ -771,7 +771,7 @@
   gap: 4px 16px;
   margin: 0;
   padding: 0;
-  font-size: 0.8rem;
+  font-size: var(--font-size-ui);
   color: var(--foreground-70);
 }
 .maka-artifact-preview-unsupported-meta > div {
@@ -806,7 +806,7 @@
 
 .maka-artifact-preview-pdf-fallback {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   color: oklch(from var(--foreground) l c h / 0.6);
 }
 
@@ -814,7 +814,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   color: oklch(from var(--foreground) l c h / 0.65);
 }
 
@@ -822,7 +822,7 @@
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
-  color: var(--accent);
+  color: var(--status-running);
 }
 
 .maka-artifact-preview-fail {
@@ -831,7 +831,7 @@
   padding: 10px 12px;
   border-radius: var(--radius-surface);
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
 }
 
 .maka-artifact-preview-fail[data-tone="destructive"] {
@@ -852,7 +852,7 @@
 
 .maka-artifact-preview-fail-body {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--font-size-caption);
   line-height: 1.55;
 }
 
@@ -903,7 +903,7 @@
   color: var(--foreground);
   border-radius: var(--radius-control);
   padding: 4px 8px;
-  font-size: 11.5px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-artifact-toolbar-button:hover {
@@ -980,9 +980,9 @@
  * chrome. */
 .maka-turn[data-search-highlight="true"] {
   border-radius: var(--radius-surface);
-  outline: 1px solid oklch(from var(--accent) l c h / 0.34);
+  outline: 1px solid oklch(from var(--link) l c h / 0.34);
   outline-offset: 6px;
-  background: oklch(from var(--accent) l c h / 0.045);
+  background: oklch(from var(--link) l c h / 0.045);
 }
 
 /* Turn aborted marker / failed banner / lineage rows + badges / footer +
@@ -1011,7 +1011,7 @@
   border: 1px solid oklch(from var(--info) l c h / 0.20);
   background: oklch(from var(--info) l c h / 0.06);
   color: var(--info-text);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   line-height: 1.4;
   transition: background var(--duration-base) var(--ease-out-strong), color var(--duration-base) var(--ease-out-strong), border-color var(--duration-base) var(--ease-out-strong);
   align-self: flex-start;
@@ -1022,7 +1022,7 @@
   color: var(--info);
 }
 .maka-session-branch-banner:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .maka-session-branch-banner[data-from-aborted] {

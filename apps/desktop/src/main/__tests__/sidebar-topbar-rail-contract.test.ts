@@ -3,70 +3,79 @@ import assert from 'node:assert/strict';
 import { readRendererContractCss } from './contract-css-helpers.js';
 
 describe('sidebar topbar rail geometry contract', () => {
-  it('anchors expanded and collapsed shell controls to the same top-left geometry', async () => {
+  it('keeps shell titlebar actions in place while drag strips avoid their hit boxes', async () => {
     const css = await readRendererContractCss();
 
-    const tokenRule = extractRuleBody(css, '.maka-shell-2col');
-    assert.ok(tokenRule, '.maka-shell-2col must define the shared topbar geometry tokens');
-    for (const token of [
-      '--maka-sidebar-topbar-button-size',
-      '--maka-sidebar-topbar-gap',
-      '--maka-sidebar-topbar-offset-y',
-      '--maka-sidebar-topbar-offset-x',
-    ]) {
-      assert.match(tokenRule, new RegExp(`${escapeRegExp(token)}\\s*:`), `${token} must be defined once on the shell`);
-    }
-
-    const shellRail = extractRuleBody(css, '.maka-shell-topbar-rail');
-    assert.ok(shellRail, '.maka-shell-topbar-rail rule must exist');
-    assert.match(shellRail, /top:\s*var\(--maka-sidebar-topbar-offset-y\)/);
-    assert.match(shellRail, /left:\s*var\(--maka-sidebar-topbar-offset-x\)/);
-    assert.match(shellRail, /gap:\s*var\(--maka-sidebar-topbar-gap\)/);
+    const tokenRule = ruleBody(css, '.maka-shell-2col');
+    assert.match(
+      tokenRule,
+      /--maka-sidebar-collapsed-topbar-inset\s*:/,
+      'collapsed chat header drag strip must have a left inset for the titlebar actions',
+    );
     assert.doesNotMatch(
-      shellRail,
-      /var\(--maka-session-list-width/,
-      'shell controls must not move horizontally when the sidebar width changes',
+      css,
+      /--maka-sidebar-collapsed-topbar-offset-y/,
+      'do not fix collapsed hit testing by moving the titlebar actions below the titlebar',
     );
 
-    const shellButtons = extractRuleBody(css, '.maka-shell-topbar-button');
-    assert.ok(shellButtons, 'shell rail buttons must share one rule');
-    assert.match(shellButtons, /width:\s*var\(--maka-sidebar-topbar-button-size\)/);
-    assert.match(shellButtons, /height:\s*var\(--maka-sidebar-topbar-button-size\)/);
+    const collapsedRail = optionalRuleBody(css, '.maka-shell-topbar-rail.is-collapsed');
+    if (collapsedRail) {
+      assert.doesNotMatch(
+        collapsedRail,
+        /top\s*:/,
+        'collapsed shell controls must not get a special vertical offset; keep the rail visually in the titlebar and carve the drag strip instead',
+      );
+    }
+
+    const sidebarHeader = ruleBody(css, '.maka-session-panel-header');
+    assert.doesNotMatch(
+      sidebarHeader,
+      /-webkit-app-region:\s*drag/,
+      'the full sidebar header covers the titlebar buttons; only the narrowed drag strip should be draggable',
+    );
+
+    const sidebarDragStrip = ruleBody(css, '.maka-sidebar-drag-strip');
+    assert.match(
+      sidebarDragStrip,
+      /margin-left:\s*calc\(/,
+      'the sidebar drag strip should leave a clickable titlebar action area before the draggable blank strip',
+    );
+    assert.match(
+      sidebarDragStrip,
+      /-webkit-app-region:\s*drag/,
+      'the narrowed sidebar drag strip should remain draggable',
+    );
+
+    const chatHeader = ruleBody(css, '.maka-chat-header');
+    assert.match(
+      chatHeader,
+      /margin-right:\s*var\(--maka-workspace-top-actions-inset\)/,
+      'the chat header drag strip should end before the workspace top actions',
+    );
+    const collapsedChatHeader = ruleBody(
+      css,
+      '.maka-shell-2col[data-sidebar-state="collapsed"] .maka-chat-header',
+    );
+    assert.match(
+      collapsedChatHeader,
+      /margin-left:\s*var\(--maka-sidebar-collapsed-topbar-inset\)/,
+      'when the sidebar is collapsed, the chat header drag strip must start after the left titlebar buttons',
+    );
+    assert.match(
+      chatHeader,
+      /-webkit-app-region:\s*drag/,
+      'the chat header remains a narrow drag strip after reserving the toolbar hit box',
+    );
   });
 });
 
-function extractRuleBody(css: string, selector: string | string[]): string | undefined {
-  const expected = Array.isArray(selector) ? selector : [selector];
-  for (const rule of iterateRules(css)) {
-    const selectors = rule.selector.split(',').map((part) => part.trim());
-    if (selectors.length === expected.length && expected.every((part) => selectors.includes(part))) {
-      return rule.body;
-    }
-  }
-  return undefined;
+function ruleBody(css: string, selector: string): string {
+  const body = optionalRuleBody(css, selector);
+  assert.ok(body, `${selector} rule must exist`);
+  return body;
 }
 
-function* iterateRules(css: string): Generator<{ selector: string; body: string }> {
-  let i = 0;
-  while (i < css.length) {
-    const braceIdx = css.indexOf('{', i);
-    if (braceIdx === -1) return;
-    const selector = css.slice(i, braceIdx).trim();
-    let depth = 1;
-    let j = braceIdx + 1;
-    while (j < css.length && depth > 0) {
-      const ch = css[j];
-      if (ch === '{') depth += 1;
-      if (ch === '}') depth -= 1;
-      j += 1;
-    }
-    if (selector && !selector.startsWith('@')) {
-      yield { selector, body: css.slice(braceIdx + 1, j - 1) };
-    }
-    i = j;
-  }
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function optionalRuleBody(css: string, selector: string): string | undefined {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`).exec(css)?.[1];
 }

@@ -40,7 +40,7 @@
   margin: 0;
   max-width: 32ch;
   color: var(--foreground);
-  font-size: 18px;
+  font-size: 1.2em;
   font-weight: 650;
   line-height: 1.25;
   letter-spacing: 0;
@@ -89,7 +89,7 @@
 .maka-firstrun-title {
   margin: 0;
   max-width: none;
-  font-size: 26px;
+  font-size: 1.7333em;
   font-weight: 680;
   line-height: 1.2;
   letter-spacing: -0.01em;
@@ -98,7 +98,7 @@
 
 .maka-firstrun-sub {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: var(--font-size-ui);
   line-height: 1.5;
   color: var(--foreground-50);
 }
@@ -128,24 +128,24 @@
   width: 21px;
   height: 21px;
   border-radius: var(--radius-pill);
-  font-size: 11.5px;
+  font-size: var(--font-size-caption);
   font-weight: 650;
   border: 1.5px solid var(--border-strong);
   color: var(--foreground-50);
 }
 
 .maka-firstrun-step-label {
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   color: var(--foreground-50);
   white-space: nowrap;
 }
 
 .maka-firstrun-step[data-state="active"] {
-  background: oklch(from var(--accent) l c h / 0.12);
+  background: oklch(from var(--nav-active) l c h / 0.12);
 }
 .maka-firstrun-step[data-state="active"] .maka-firstrun-step-dot {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--nav-active);
+  border-color: var(--nav-active);
   color: var(--background);
 }
 .maka-firstrun-step[data-state="active"] .maka-firstrun-step-label {
@@ -181,12 +181,12 @@
   margin: 30px 0 12px;
 }
 .maka-firstrun-pick-label {
-  font-size: 13.5px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
   color: var(--foreground);
 }
 .maka-firstrun-pick-hint {
-  font-size: 12.5px;
+  font-size: var(--font-size-ui);
   color: var(--foreground-50);
 }
 
@@ -214,11 +214,11 @@
 /* --- "常用" tag inside a provider row title --- */
 .maka-firstrun-tag {
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1;
-  color: var(--accent);
-  background: oklch(from var(--accent) l c h / 0.12);
+  color: var(--nav-active);
+  background: oklch(from var(--nav-active) l c h / 0.12);
   padding: 2px 6px;
   border-radius: var(--radius-control);
 }
@@ -261,8 +261,8 @@
 }
 
 .maka-onboarding-setup-steps > li[data-state="active"] {
-  border-color: oklch(from var(--accent) l c h / 0.34);
-  background: oklch(from var(--accent) l c h / 0.06);
+  border-color: oklch(from var(--nav-active) l c h / 0.34);
+  background: oklch(from var(--nav-active) l c h / 0.06);
 }
 
 .maka-onboarding-setup-steps > li[data-state="warning"] {
@@ -271,7 +271,7 @@
 }
 
 .maka-onboarding-setup-steps > li[data-state="done"] {
-  border-color: oklch(from var(--success, var(--accent)) l c h / 0.28);
+  border-color: oklch(from var(--success, var(--status-running)) l c h / 0.28);
 }
 
 .maka-onboarding-setup-step-marker {
@@ -283,12 +283,12 @@
   border-radius: var(--radius-pill);
   background: var(--background-elevated);
   color: var(--foreground-70);
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
 }
 
 .maka-onboarding-setup-steps > li[data-state="active"] .maka-onboarding-setup-step-marker {
-  background: var(--accent);
+  background: var(--nav-active);
   color: var(--accent-contrast, var(--background));
 }
 
@@ -305,14 +305,14 @@
 
 .maka-onboarding-setup-step-copy strong {
   color: var(--foreground);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1.2;
 }
 
 .maka-onboarding-setup-step-copy small {
   color: var(--foreground-60);
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   line-height: 1.3;
 }
 
@@ -322,14 +322,14 @@
   border-radius: var(--radius-pill);
   background: var(--background-elevated);
   color: var(--foreground-60);
-  font-size: 10px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .maka-onboarding-setup-steps > li[data-state="active"] .maka-onboarding-setup-step-state {
-  background: oklch(from var(--accent) l c h / 0.12);
-  color: var(--accent);
+  background: oklch(from var(--nav-active) l c h / 0.12);
+  color: var(--nav-active);
 }
 
 .maka-onboarding-setup-steps > li[data-state="warning"] .maka-onboarding-setup-step-state {
@@ -355,7 +355,7 @@
      warm/amber for `warning` (info family), shifts destructive
      for `blocked` so a stranded user immediately sees gravity. */
 .maka-onboarding-setup header h1 {
-  font-size: 22px;
+  font-size: 1.4667em;
 }
 .maka-onboarding-setup header p {
   margin-top: 8px;
@@ -381,7 +381,7 @@
 
 .maka-onboarding-slug {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   padding: 2px 6px;
   /* PR-UI-LAYOUT-25: slug radius 6 → 8 to join the form input
    * family (same chrome as inline code badges). */
@@ -395,7 +395,7 @@
    surface stays self-contained. */
 .maka-onboarding-ready header h1 {
   font-family: Georgia, "Times New Roman", Times, serif;
-  font-size: 29px;
+  font-size: 1.9333em;
   font-weight: 680;
   letter-spacing: 0;
   line-height: 1.18;
@@ -404,7 +404,7 @@
   /* Slightly larger subtitle so it carries the meaning without
      reading like fine print under the now-heavier h1. */
   margin-top: 6px;
-  font-size: 14px;
+  font-size: var(--font-size-ui);
   line-height: 1.5;
   max-width: 56ch;
 }
@@ -435,10 +435,10 @@
 }
 
 .maka-onboarding-quickchat:focus-within {
-  border-color: oklch(from var(--accent) l c h / 0.34);
+  border-color: oklch(from var(--focus-ring) l c h / 0.34);
   box-shadow:
     0 20px 52px oklch(from var(--foreground) l c h / 0.10),
-    0 0 0 4px oklch(from var(--accent) l c h / 0.08),
+    0 0 0 4px oklch(from var(--focus-ring) l c h / 0.08),
     0 1px 0 oklch(from var(--foreground) 1 0 h / 0.75) inset;
 }
 /* Justified: bare-textarea chrome reset — see `.composer .maka-composer-
@@ -461,7 +461,7 @@
   min-height: 90px;
   color: var(--foreground);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   outline: none;
   border: none !important;
@@ -475,11 +475,11 @@
    regardless of selector specificity — so painting this on the textarea
    was always dead code. */
 .maka-onboarding-quickchat[data-drag-active="true"] {
-  border-color: oklch(from var(--accent) l c h / 0.46);
-  background: oklch(from var(--accent) 0.98 calc(c * 0.20) h / 0.35);
+  border-color: oklch(from var(--focus-ring) l c h / 0.46);
+  background: oklch(from var(--focus-ring) 0.98 calc(c * 0.20) h / 0.35);
   box-shadow:
-    0 0 0 1px oklch(from var(--accent) l c h / 0.22),
-    0 0 0 4px oklch(from var(--accent) l c h / 0.08);
+    0 0 0 1px oklch(from var(--focus-ring) l c h / 0.22),
+    0 0 0 4px oklch(from var(--focus-ring) l c h / 0.08);
 }
 .maka-onboarding-quickchat-input:focus-visible {
   outline: none;
@@ -496,12 +496,12 @@
   margin-bottom: 0;
   padding-inline: 0;
   color: var(--foreground-50);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.4;
   font-style: italic;
 }
 .maka-onboarding-quickchat-example[data-pending="true"] {
-  color: var(--accent);
+  color: var(--status-running);
   font-style: normal;
   font-weight: 650;
 }
@@ -512,9 +512,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   padding: 4px 8px;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  font-size: 0.78rem;
+  color: var(--nav-active);
+  background: color-mix(in srgb, var(--nav-active) 10%, transparent);
+  font-size: var(--font-size-caption);
   line-height: 1;
 }
 .maka-onboarding-quickchat-submit {
@@ -527,28 +527,28 @@
   min-width: 40px;
   padding: 0;
   border-radius: var(--radius-control);
-  background: var(--accent);
-  color: var(--accent-foreground, oklch(0.985 0.003 250));
+  background: var(--action);
+  color: var(--action-foreground);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.16),
-    0 10px 20px oklch(from var(--accent) l c h / 0.22);
+    0 10px 20px oklch(from var(--action) l c h / 0.22);
   position: absolute;
   right: 18px;
   bottom: 18px;
 }
 
 .maka-onboarding-quickchat-submit:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, black);
-  color: var(--accent-foreground, oklch(0.985 0.003 250));
+  background: color-mix(in srgb, var(--action) 88%, black);
+  color: var(--action-foreground);
   transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.18),
-    0 12px 24px oklch(from var(--accent) l c h / 0.26);
+    0 12px 24px oklch(from var(--action) l c h / 0.26);
 }
 
 .maka-onboarding-quickchat-submit:disabled {
-  background: color-mix(in srgb, var(--accent) 58%, white);
-  color: var(--accent-foreground, oklch(0.985 0.003 250));
+  background: color-mix(in srgb, var(--action) 58%, white);
+  color: var(--action-foreground);
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -575,7 +575,7 @@
 }
 
 .maka-first-run-task-suggestions-header > strong {
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   color: var(--foreground-50);
   font-weight: 600;
 }
@@ -607,7 +607,7 @@
   height: auto;
   min-height: 38px;
   padding: 9px 18px;
-  font-size: 12.5px;
+  font-size: var(--font-size-ui);
   line-height: 1.2;
   text-align: center;
   box-shadow: 0 1px 2px oklch(from var(--foreground) l c h / 0.04);
@@ -620,7 +620,7 @@
 }
 
 .maka-first-run-task-suggestion:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -680,7 +680,7 @@
   align-items: center;
   gap: 6px;
   overflow: hidden;
-  font-size: 0.875rem;
+  font-size: var(--font-size-ui);
   font-weight: 500;
   min-width: 0;
 }
@@ -701,18 +701,18 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.15);
+  background: var(--status-running);
+  box-shadow: 0 0 0 3px oklch(from var(--status-running) l c h / 0.15);
   animation: maka-list-row-streaming-pulse 1.2s var(--ease-in-out-strong) infinite;
 }
 
 @keyframes maka-list-row-streaming-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.18);
+    box-shadow: 0 0 0 3px oklch(from var(--status-running) l c h / 0.18);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 5px oklch(from var(--accent) l c h / 0.05);
+    box-shadow: 0 0 0 5px oklch(from var(--status-running) l c h / 0.05);
     transform: scale(1.1);
   }
 }
@@ -736,7 +736,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--foreground-50);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -772,8 +772,8 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-pill);
-  background: var(--accent);
-  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.15);
+  background: var(--status-running);
+  box-shadow: 0 0 0 3px oklch(from var(--status-running) l c h / 0.15);
 }
 
 /* Stale session — `backend='fake'` or `llmConnectionSlug` no longer
@@ -810,7 +810,7 @@
   color: var(--foreground-60);
 }
 .maka-list-row-status-icon[data-tone="accent"] {
-  color: var(--accent);
+  color: var(--nav-active);
 }
 .maka-list-row-status-icon[data-tone="warning"] {
   color: var(--info-text);
@@ -857,14 +857,14 @@
   text-align: left;
 }
 .maka-list-group-toggle:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: var(--radius-control);
 }
 .maka-list-group-count {
   font-variant-numeric: tabular-nums;
   color: var(--foreground-30);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 500;
 }
 
@@ -880,7 +880,7 @@
    * "已过期" is a degraded-state signal, not informational. */
   background: oklch(from var(--warning, var(--info)) l c h / 0.18);
   color: var(--warning-text, var(--info-text));
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   font-weight: 600;
   line-height: 1.4;
 }
@@ -924,14 +924,14 @@
 
 .maka-empty-state-title {
   color: var(--foreground);
-  font-size: 13px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
 }
 
 .maka-empty-state-body {
   max-width: 30ch;
   color: var(--foreground-40);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.4;
   text-wrap: pretty;
 }
@@ -956,19 +956,19 @@
 
 .maka-session-list .maka-session-empty-state .maka-empty-state-title {
   color: var(--foreground-50);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   font-weight: 600;
 }
 
 .maka-session-list .maka-session-empty-state .maka-empty-state-body {
   max-width: 22ch;
   color: var(--foreground-40);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-empty-state-code {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   padding: 1px 5px;
   border-radius: var(--radius-control);
   background: var(--foreground-5);

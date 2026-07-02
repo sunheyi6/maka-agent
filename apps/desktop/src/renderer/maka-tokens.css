@@ -108,6 +108,7 @@
      Done CTA and made every palette read as olive-green. */
   --brand-deep: var(--accent);
   --brand-deep-hover: oklch(from var(--accent) calc(l - 0.06) c h);
+  --bot-brand-default: var(--accent);
 
   /* === text variants (mixed toward foreground for better contrast) === */
   --success-text: color-mix(in oklab, var(--success) 50%, var(--foreground));
@@ -232,8 +233,19 @@
   --font-mono: "Geist Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --font-default: var(--font-sans);
 
-  /* === layout === */
+  /* === typography ===
+     PR-TYPOGRAPHY-CONVERGE-0 (issue #430 PR2, 2026-07-03):
+     three-tier scale. Body 15 is the root (html font-size); UI 13 is the
+     chrome/control tier (sidebar rows, labels, buttons, form fields);
+     caption 11 is dense meta (timestamps, badges, kbd, overlines).
+     9/10/10.5/11/11.5px and sub-0.8rem collapse to caption;
+     12/12.5/13/13.5/14px and 0.8-0.95rem collapse to ui.
+     Bubble h1-h4 scale in em off body 15 so they track the root automatically. */
   --font-size-base: 15px;
+  --font-size-ui: 13px;
+  --font-size-caption: 11px;
+
+  /* === layout === */
   --radius: 0rem;
   --radius-control: 6px;
   --radius-surface: 8px;
@@ -309,9 +321,10 @@
      toolbar occupies in the top-right corner: its right offset + four 24px icon
      buttons with 6px gaps (114px) + a 12px clearance gap. Right-aligned
      chat-header content (model switcher, .maka-chat-header-mode-pill, memory
-     pill) reserves this as right padding so it does not render underneath the
-     toolbar. Companion to PR-CHAT-HEADER-STATUS-CLUSTER-0, which only relocated
-     the status cluster and left the in-header pills overlapping. */
+     pill) and the chat-header drag strip reserve this footprint so neither
+     content nor titlebar hit regions sit underneath the toolbar. Companion to
+     PR-CHAT-HEADER-STATUS-CLUSTER-0, which only relocated the status cluster and
+     left the in-header pills overlapping. */
   --maka-workspace-top-actions-inset: calc(var(--maka-workspace-top-actions-right) + 126px);
 
   /* session list geometry */
@@ -372,6 +385,7 @@
      variant for the darker surface. */
   --brand-deep: var(--accent);
   --brand-deep-hover: oklch(from var(--accent) calc(l + 0.06) c h);
+  --bot-brand-default: var(--accent);
 }
 
 /* =============================================================================
@@ -786,7 +800,7 @@
     align-items: center;
     gap: 4px;
     padding: 2px 8px;
-    font-size: 0.8125rem;
+    font-size: var(--font-size-ui);
     font-weight: 500;
     color: var(--foreground-80);
     background: var(--foreground-5);
@@ -840,7 +854,7 @@
     justify-content: space-between;
     border-bottom: 1px solid var(--border);
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--font-size-ui);
     letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--foreground-60);
@@ -855,7 +869,7 @@
     padding: 6px 10px;
     border-radius: var(--radius-control);
     color: var(--foreground-80);
-    font-size: 14px;
+    font-size: var(--font-size-ui);
     line-height: 1.4;
     user-select: none;
     transition: background 120ms var(--ease-out-strong), color 120ms var(--ease-out-strong);
@@ -870,7 +884,7 @@
     content: "";
     width: 6px; height: 6px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--status-running);
     flex-shrink: 0;
   }
 
@@ -881,7 +895,7 @@
     padding: 4px 8px;
     border-radius: var(--radius-control);
     color: var(--foreground-60);
-    font-size: 13px;
+    font-size: var(--font-size-ui);
   }
   .maka-sidebar-button:hover { background: var(--hover); color: var(--foreground); }
 
@@ -900,7 +914,7 @@
     align-items: center;
     gap: 12px;
     padding: 0 16px;
-    font-size: 13px;
+    font-size: var(--font-size-ui);
     color: var(--foreground-70);
   }
   .maka-titlebar strong { color: var(--foreground); font-weight: 500; }
@@ -971,10 +985,10 @@
   .maka-turn-thinking {
     margin: 0 0 8px;
     padding: 8px 10px;
-    border: 1px dashed oklch(from var(--accent) l c h / 0.25);
+    border: 1px dashed oklch(from var(--focus-ring) l c h / 0.25);
     border-radius: var(--radius-surface);
-    background: oklch(from var(--accent) l c h / 0.03);
-    font-size: 12.5px;
+    background: oklch(from var(--focus-ring) l c h / 0.03);
+    font-size: var(--font-size-ui);
     color: var(--foreground-70);
   }
 
@@ -983,7 +997,7 @@
     align-items: center;
     gap: 8px;
     font-weight: 600;
-    color: var(--accent);
+    color: var(--focus-ring);
     letter-spacing: 0.02em;
     list-style: none;
     /* `cursor: pointer` intentionally omitted — native macOS reserves
@@ -1010,7 +1024,7 @@
   }
 
   .maka-turn-thinking-note {
-    font-size: 10px;
+    font-size: var(--font-size-caption);
     font-weight: 500;
     letter-spacing: 0.04em;
     color: var(--foreground-50);
@@ -1064,8 +1078,8 @@
   }
 
   .maka-bubble-assistant li.task-list-item > input[type="checkbox"]:checked {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--control);
+    border-color: var(--control);
   }
 
   .maka-bubble-assistant li.task-list-item > input[type="checkbox"]:checked::after {
@@ -1075,7 +1089,7 @@
     top: -1px;
     width: 4px;
     height: 8px;
-    border: solid white;
+    border: solid var(--control-foreground);
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
@@ -1154,10 +1168,10 @@
   .maka-bubble-assistant code {
     font-variant-numeric: tabular-nums;
   }
-  .maka-bubble-assistant h1 { font-size: 22px; }
-  .maka-bubble-assistant h2 { font-size: 19px; }
-  .maka-bubble-assistant h3 { font-size: 16px; }
-  .maka-bubble-assistant h4 { font-size: 14px; color: var(--foreground-80); }
+  .maka-bubble-assistant h1 { font-size: 1.4667em; }
+  .maka-bubble-assistant h2 { font-size: 1.2667em; }
+  .maka-bubble-assistant h3 { font-size: 1.0667em; }
+  .maka-bubble-assistant h4 { font-size: 0.9333em; color: var(--foreground-80); }
   .maka-bubble-assistant ul,
   .maka-bubble-assistant ol {
     margin: 0 0 12px;
@@ -1167,9 +1181,9 @@
   .maka-bubble-assistant li > ul,
   .maka-bubble-assistant li > ol { margin-bottom: 0; }
   .maka-bubble-assistant a {
-    color: var(--accent);
+    color: var(--link);
     text-decoration: none;
-    border-bottom: 1px solid oklch(from var(--accent) l c h / 0.4);
+    border-bottom: 1px solid oklch(from var(--link) l c h / 0.4);
     /* PR-UI-LAYOUT-34: explicit transition so focus state animates
      * smoothly. Also: explicit padding-inline + negative margin so
      * the focus halo has hit area without pushing inline content
@@ -1180,12 +1194,12 @@
     transition: border-bottom-color 120ms var(--ease-out-strong), background 120ms var(--ease-out-strong), box-shadow 120ms var(--ease-out-strong);
   }
   .maka-bubble-assistant a:hover {
-    border-bottom-color: var(--accent);
+    border-bottom-color: var(--link);
   }
   .maka-bubble-assistant a:focus-visible {
     outline: none;
-    background: oklch(from var(--accent) l c h / 0.06);
-    box-shadow: 0 0 0 2px oklch(from var(--accent) l c h / 0.20);
+    background: oklch(from var(--link) l c h / 0.06);
+    box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.20);
   }
   .maka-bubble-assistant code {
     font-family: var(--font-mono);
@@ -1218,7 +1232,7 @@
     background: var(--foreground-5);
     color: var(--foreground-60);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: var(--font-size-caption);
     letter-spacing: 0.02em;
   }
   .maka-code-block-lang {
@@ -1248,7 +1262,7 @@
     outline: none;
     color: var(--foreground);
     background: var(--foreground-10);
-    box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.14);
+    box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
   }
   .maka-code-block-copy[data-copied="true"] {
     color: var(--success-text);
@@ -1268,7 +1282,7 @@
     background: transparent;
     overflow-x: auto;
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: var(--font-size-ui);
     line-height: 1.55;
     white-space: pre;
   }
@@ -1287,7 +1301,7 @@
   .hljs-keyword,
   .hljs-selector-tag,
   .hljs-literal,
-  .hljs-tag        { color: oklch(from var(--accent) calc(l - 0.05) calc(c + 0.04) h); }
+  .hljs-tag        { color: oklch(from var(--link) calc(l - 0.05) calc(c + 0.04) h); }
   .hljs-string,
   .hljs-doctag,
   .hljs-regexp     { color: oklch(from var(--success) calc(l + 0.02) c h); }
@@ -1299,7 +1313,7 @@
   .hljs-type,
   .hljs-class .hljs-title,
   .hljs-title.class_,
-  .hljs-title.function_ { color: oklch(from var(--accent) calc(l - 0.1) c calc(h - 30)); }
+  .hljs-title.function_ { color: oklch(from var(--link) calc(l - 0.1) c calc(h - 30)); }
   .hljs-variable,
   .hljs-attr,
   .hljs-attribute,
@@ -1324,7 +1338,7 @@
      * icon + border + saturated tone pattern. The left rule keeps
      * the accent tie so quotes still feel branded, not generic. */
     padding: 8px 16px;
-    border-left: 3px solid oklch(from var(--accent) l c h / 0.28);
+    border-left: 3px solid oklch(from var(--focus-ring) l c h / 0.28);
     background: var(--foreground-3);
     border-radius: 0 var(--radius-surface) var(--radius-surface) 0;
     color: var(--foreground-70);
@@ -1333,7 +1347,7 @@
     width: 100%;
     margin: 0 0 12px;
     border-collapse: collapse;
-    font-size: 13px;
+    font-size: var(--font-size-ui);
     overflow: hidden;
     /* PR-UI-LAYOUT-28: table radius 8 → 10 joins the card family,
      * and a hairline outer border gives the table chrome a clean
@@ -1417,7 +1431,7 @@
     align-items: center;
     gap: 6px;
     padding: 3px 8px;
-    font-size: 10.5px;
+    font-size: var(--font-size-caption);
     font-weight: 600;
     opacity: 1;
     background: transparent;
@@ -1462,8 +1476,8 @@
     content: "▎";
     display: inline-block;
     margin-left: 2px;
-    color: var(--accent);
-    animation: maka-cursor 1.1s var(--ease-in-out-strong) infinite;
+     color: var(--status-running);
+     animation: maka-cursor 1.1s var(--ease-in-out-strong) infinite;
     vertical-align: -2px;
   }
   @keyframes maka-cursor { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
@@ -1495,8 +1509,8 @@
   [data-slot="tool"] > summary::marker { content: ''; }
 
   @keyframes maka-tool-pulse {
-    0%, 100% { box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.15); }
-    50%      { box-shadow: 0 0 0 5px oklch(from var(--accent) l c h / 0.06); }
+    0%, 100% { box-shadow: 0 0 0 3px oklch(from var(--status-running) l c h / 0.15); }
+    50%      { box-shadow: 0 0 0 5px oklch(from var(--status-running) l c h / 0.06); }
   }
 
   /* Canonical "live" pulse for the @maka/ui LiveIndicator primitive (issue
@@ -1553,19 +1567,19 @@
      ugly textarea native outline. PR-UI-LAYOUT-8: ring opacity dropped
      slightly so the focus state feels alert without being aggressive. */
   .maka-composer-inner:focus-within {
-    border-color: oklch(from var(--accent) l c h / 0.40);
+    border-color: oklch(from var(--focus-ring) l c h / 0.40);
     background: var(--background);
     box-shadow:
-      0 0 0 1px oklch(from var(--accent) l c h / 0.20),
-      0 0 0 4px oklch(from var(--accent) l c h / 0.08),
+      0 0 0 1px oklch(from var(--focus-ring) l c h / 0.20),
+      0 0 0 4px oklch(from var(--focus-ring) l c h / 0.08),
       0 1px 3px oklch(from var(--foreground) l c h / 0.04);
   }
   .maka-composer[data-drag-active="true"] .maka-composer-inner {
-    border-color: oklch(from var(--accent) l c h / 0.46);
-    background: oklch(from var(--accent) 0.98 calc(c * 0.20) h / 0.35);
+    border-color: oklch(from var(--focus-ring) l c h / 0.46);
+    background: oklch(from var(--focus-ring) 0.98 calc(c * 0.20) h / 0.35);
     box-shadow:
-      0 0 0 1px oklch(from var(--accent) l c h / 0.22),
-      0 0 0 4px oklch(from var(--accent) l c h / 0.08),
+      0 0 0 1px oklch(from var(--focus-ring) l c h / 0.22),
+      0 0 0 4px oklch(from var(--focus-ring) l c h / 0.08),
       0 1px 3px oklch(from var(--foreground) l c h / 0.04);
   }
   .maka-composer textarea {
@@ -1577,7 +1591,7 @@
     background: transparent;
     color: var(--foreground);
     font-family: var(--font-default);
-    font-size: 15px;
+    font-size: var(--font-size-base);
     line-height: 1.5;
     min-height: var(--h-composer-min);
     max-height: 240px;
@@ -1601,7 +1615,7 @@
     justify-content: space-between;
     gap: 8px;
     color: var(--foreground-60);
-    font-size: 12px;
+    font-size: var(--font-size-ui);
   }
 
   /* ---- Buttons ---------------------------------------------------- */
@@ -1618,7 +1632,7 @@
     color: var(--foreground);
     padding: 7px 14px;
     border-radius: var(--radius-control);
-    font-size: 13px;
+    font-size: var(--font-size-ui);
     font-weight: 500;
     line-height: 1.2;
     transition: background 120ms var(--ease-out-strong), border-color 120ms var(--ease-out-strong), color 120ms var(--ease-out-strong), transform 120ms var(--ease-out-strong), box-shadow 120ms var(--ease-out-strong);
@@ -1627,7 +1641,7 @@
   .maka-button:active { background: var(--active); transform: translateY(0.5px); }
   .maka-button:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.16);
+    box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.16);
   }
   .maka-button[disabled],
   .maka-button[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
@@ -1665,13 +1679,13 @@
     border-bottom: 1px solid var(--border);
   }
   .maka-modal-title {
-    font-size: 15px;
+    font-size: var(--font-size-base);
     font-weight: 600;
     color: var(--foreground);
     letter-spacing: 0;
   }
   .maka-modal-subtitle {
-    font-size: 13px;
+    font-size: var(--font-size-ui);
     color: var(--foreground-60);
     margin-top: 2px;
   }
@@ -1700,7 +1714,7 @@
 
   .maka-code {
     font-family: var(--font-mono);
-    font-size: 12.5px;
+    font-size: var(--font-size-ui);
     background: var(--foreground-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-surface);

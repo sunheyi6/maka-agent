@@ -7,13 +7,13 @@
   height: 30px;
   border-radius: var(--radius-pill);
   background: linear-gradient(
-    oklch(from var(--accent) calc(l - 0.10) c h),
-    oklch(from var(--accent) calc(l - 0.20) c h)
+    oklch(from var(--action) calc(l - 0.10) c h),
+    oklch(from var(--action) calc(l - 0.20) c h)
   );
-  color: oklch(1 0 0);
+  color: var(--action-foreground);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.18),
-    0 8px 18px -14px oklch(from var(--accent) l c h / 0.5);
+    0 8px 18px -14px oklch(from var(--action) l c h / 0.5);
   transition:
     background var(--duration-base) var(--ease-out-strong),
     transform var(--duration-emphasized) var(--ease-out-strong),
@@ -25,14 +25,14 @@
    tactile press range. 1.06→1.03 hover, 0.96→0.97 active. */
 .maka-composer-send-button:hover:not(:disabled) {
   background: linear-gradient(
-    oklch(from var(--accent) calc(l - 0.05) c h),
-    oklch(from var(--accent) calc(l - 0.15) c h)
+    oklch(from var(--action) calc(l - 0.05) c h),
+    oklch(from var(--action) calc(l - 0.15) c h)
   );
-  color: oklch(1 0 0);
+  color: var(--action-foreground);
   transform: scale(1.03);
   box-shadow:
     inset 0 1px 0 oklch(1 0 0 / 0.18),
-    0 10px 22px -14px oklch(from var(--accent) l c h / 0.55);
+    0 10px 22px -14px oklch(from var(--action) l c h / 0.55);
 }
 
 .maka-composer-send-button:active:not(:disabled) {
@@ -72,7 +72,7 @@
   background: transparent;
   color: var(--foreground-50);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   line-height: 1.25;
   text-align: left;
   transition: color var(--duration-quick) var(--ease-out-strong);
@@ -91,7 +91,7 @@
 .maka-composer-workspace-picker:focus-visible {
   outline: none;
   border-radius: var(--radius-control);
-  box-shadow: 0 0 0 3px oklch(from var(--accent) l c h / 0.14);
+  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
 }
 
 .maka-composer-workspace-picker svg {
@@ -115,7 +115,7 @@
   align-items: center;
   gap: 8px;
   color: var(--foreground-70);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 /* Streaming indicator — 3-dot typing pattern (the center dot is the
@@ -128,7 +128,7 @@
   height: 5px;
   margin-inline: 9px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--status-running);
   animation: maka-composer-stream-bounce 1.05s var(--ease-in-out-strong) -0.2s infinite both;
 }
 
@@ -140,7 +140,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--status-running);
   animation: maka-composer-stream-bounce 1.05s var(--ease-in-out-strong) infinite both;
 }
 
@@ -191,7 +191,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--status-running);
   animation: maka-composer-permission-pulse 1.4s var(--ease-in-out-strong) infinite;
   flex-shrink: 0;
 }
@@ -228,7 +228,7 @@
   gap: 5px;
   margin-top: 10px;
   color: var(--foreground-70);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
 }
 
 /* PR30 Permission dialog: per-reason iconography + per-tool summary block */
@@ -269,7 +269,7 @@
 
 .maka-permission-tool {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   padding: 0 5px;
   border-radius: var(--radius-control);
   background: var(--foreground-5);
@@ -279,7 +279,7 @@
 
 .maka-permission-age {
   color: var(--foreground-50);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   white-space: nowrap;
 }
 
@@ -304,7 +304,7 @@
 .maka-permission-line {
   margin: 0;
   color: var(--foreground-80);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-permission-path {
@@ -313,7 +313,7 @@
 
 .maka-permission-path code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   padding: 1px 5px;
   border-radius: var(--radius-control);
   background: var(--foreground-5);
@@ -331,7 +331,7 @@
 .maka-permission-meta {
   margin: 0;
   color: var(--foreground-60);
-  font-size: 11px;
+  font-size: var(--font-size-caption);
 }
 
 .maka-permission-hint {
@@ -339,7 +339,7 @@
   background: oklch(from var(--info) l c h / 0.10);
   color: var(--info-text);
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: var(--font-size-caption);
   line-height: 1.4;
 }
 
@@ -349,7 +349,7 @@
 .maka-permission-danger-note {
   margin: 0;
   color: var(--destructive);
-  font-size: 12px;
+  font-size: var(--font-size-ui);
   line-height: 1.5;
   font-weight: 600;
 }
