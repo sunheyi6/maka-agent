@@ -10,7 +10,7 @@ import type {
   UpdateAppSettingsResult,
   UsageStats,
 } from '@maka/core';
-import { createDefaultSettings, DEFAULT_DAILY_REVIEW_CONFIG } from '@maka/core';
+import { createDefaultSettings, DEFAULT_DAILY_REVIEW_CONFIG, mergeSettings } from '@maka/core';
 import { SettingsSurface } from '../../src/renderer/settings/settings-surface';
 import type { ConnectionsBridge } from '../../src/renderer/settings/ProvidersPanel';
 import { withScopedMakaBridge } from '../maka-bridge';
@@ -97,13 +97,16 @@ const connectionsBridge: ConnectionsBridge = {
 
 const usageStats: UsageStats = {
   summary: {
-    range: 'month',
-    fromMs: NOW - 30 * 86_400_000,
-    toMs: NOW,
-    requestCount: 420,
+    totalRequests: 420,
+    totalCostUsd: 2.34,
     totalTokens: 186_000,
-    costUsd: 2.34,
-    errorCount: 3,
+    inputTokens: 100_000,
+    outputTokens: 86_000,
+    cacheTokens: 0,
+    cacheMiss: 0,
+    cacheRead: 0,
+    cacheCreation: 0,
+    reasoning: 0,
   },
   logs: [],
   byProvider: [{ provider: 'zai-coding-plan', requests: 280, tokens: 124_000, costUsd: 1.5 }],
@@ -116,8 +119,7 @@ const makaBridge = {
   settings: {
     get: async () => createDefaultSettings(),
     update: async (patch: Parameters<typeof window.maka.settings.update>[0]): Promise<UpdateAppSettingsResult> => {
-      const merged = { ...createDefaultSettings(), ...patch };
-      return { settings: merged };
+      return { settings: mergeSettings(createDefaultSettings(), patch) };
     },
     usageStats: async (): Promise<UsageStats> => usageStats,
     bots: {

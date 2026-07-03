@@ -120,6 +120,29 @@ describe('Storybook baseline contract', () => {
     assert.match(emptySrc, /\bSpinner\b/, 'empty.stories.tsx Loading story must cover Spinner');
   });
 
+  it('curated primitive components appear in story source', () => {
+    const storiesDir = join(REPO_ROOT, 'packages', 'ui', 'stories');
+    const storyFiles = readdirSync(storiesDir).filter((f) => f.endsWith('.stories.tsx'));
+    const allStorySrc = storyFiles.map((f) => readFileSync(join(storiesDir, f), 'utf8')).join('\n');
+
+    const curatedPrimitives = [
+      'Button', 'Badge', 'Input', 'Textarea', 'Separator', 'Checkbox',
+      'DialogRoot', 'TabsRoot', 'SelectRoot', 'Label', 'Switch', 'Toggle', 'ToggleGroup',
+      'RadioGroup', 'Radio', 'Progress', 'Alert', 'Empty', 'Spinner', 'Kbd',
+      'Menu', 'Accordion', 'Toolbar', 'ToastProvider',
+    ];
+    const missing = curatedPrimitives.filter(
+      (name) => !new RegExp(`<${name}[\\s/>]`).test(allStorySrc),
+    );
+    assert.deepEqual(
+      missing,
+      [],
+      `Curated primitive components not found in story source: ${missing.join(', ')}. ` +
+        'This is a textual smoke check, not an exhaustive export or JSX AST check; ' +
+        'typecheck:stories is the primary drift guard for prop/type changes.',
+    );
+  });
+
   it('storyboards the sidebar session list states before visual polish', () => {
     const sidebarStories = join(REPO_ROOT, 'packages', 'ui', 'stories', 'session-list-panel.stories.tsx');
     assert.ok(existsSync(sidebarStories), 'Sidebar session-list states must be inspectable in Storybook');
