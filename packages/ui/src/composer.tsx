@@ -22,6 +22,7 @@ import {
   rememberComposerDraft,
   rememberComposerHistoryEntry,
 } from './composer-helpers.js';
+import { readGlobalInputHistory, saveGlobalInputHistoryEntry } from './input-history.js';
 import type { PermissionMode, ProviderType, SessionSummary } from '@maka/core';
 import { Button as UiButton, Textarea as UiTextarea } from './ui.js';
 import { Kbd } from './primitives/kbd.js';
@@ -213,7 +214,7 @@ export const Composer = forwardRef<
   const composerMountedRef = useRef(true);
   const sendPendingRef = useRef(false);
   const pendingImportActionRef = useRef<ComposerImportActionId | null>(null);
-  const promptHistoryRef = useRef<ComposerHistoryState>({ entries: [], index: -1, savedDraft: '' });
+  const promptHistoryRef = useRef<ComposerHistoryState>({ entries: readGlobalInputHistory(), index: -1, savedDraft: '' });
   // PR-UI-15: locale-aware copy for placeholder + toolbar states. We
   // detect once per render (cheap) rather than memoizing — the locale
   // is effectively constant for the lifetime of the renderer but the
@@ -328,6 +329,9 @@ export const Composer = forwardRef<
     }
     if (!composerMountedRef.current) return;
     if (sent === false) return;
+    // Save to both local ref and global persistence so the history
+    // survives page reloads and is shared across all input surfaces.
+    saveGlobalInputHistoryEntry(text);
     promptHistoryRef.current = {
       entries: rememberComposerHistoryEntry(promptHistoryRef.current.entries, text),
       index: -1,
