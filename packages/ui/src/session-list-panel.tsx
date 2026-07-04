@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent } from 'react';
-import type { PlanReminder, SessionSummary } from '@maka/core';
-import { formatCompactTimestamp } from '@maka/core';
+import type { PlanReminder, SessionFolder, SessionSummary } from '@maka/core';
+import { UNGROUPED_FOLDER_KEY, UNGROUPED_FOLDER_LABEL, formatCompactTimestamp } from '@maka/core';
 import {
   Archive,
   ArchiveRestore,
@@ -9,10 +9,13 @@ import {
   CircleCheckBig,
   Clock,
   Eye,
+  Folder,
+  FolderPlus,
   Hourglass,
   LineChart,
   Loader2,
   MessageSquare,
+  MoveRight,
   Pencil,
   Pin,
   PinOff,
@@ -21,6 +24,7 @@ import {
   Sparkles,
   SquarePen,
   Trash2,
+  X,
 } from './icons.js';
 import type { NavSelection, SessionFilter } from './nav-selection.js';
 import type {
@@ -115,7 +119,7 @@ const MODULE_NAV_LABEL: Record<ModuleNavId, string> = {
   'daily-review': '每日回顾',
 };
 
-type SessionRowActionId = 'flag' | 'archive' | 'rename' | 'delete';
+type SessionRowActionId = 'flag' | 'archive' | 'rename' | 'delete' | 'move';
 
 interface SessionRowActions {
   /** Flag (pin) state toggle. */
@@ -127,6 +131,12 @@ interface SessionRowActions {
   onRename(sessionId: string, name: string): void | Promise<void>;
   /** Permanent removal — caller is responsible for the confirm gate. */
   onDelete(sessionId: string): void | Promise<void>;
+  /**
+   * Move a session into a folder, or out of all folders when `folderId`
+   * is null. PR-FOLDERS. Caller owns the folder list so the menu can
+   * render real folder names.
+   */
+  onMoveToFolder?(sessionId: string, folderId: string | null): void | Promise<void>;
 }
 
 export function SessionListPanel(props: {
@@ -169,6 +179,31 @@ export function SessionListPanel(props: {
     collapsible: boolean;
     defaultExpanded: boolean;
   }>;
+  /**
+   * PR-FOLDERS: folder-grouped view mode toggle. When `'folder'`, the
+   * panel renders the segmented toggle above the list and treats
+   * `statusGroups` as folder-derived groups (sessions indented under
+   * their folder header). When `'status'` (default), behavior is
+   * unchanged from pre-folder PRs.
+   */
+  viewMode?: 'status' | 'folder';
+  onViewModeChange?(mode: 'status' | 'folder'): void;
+  /**
+   * Folders for the folder view + the move-to-folder menu. Passed
+   * through from the renderer's folder store. Only consulted when
+   * `viewMode === 'folder'`.
+   */
+  folders?: SessionFolder[];
+  /**
+   * Folder-level operations (create / rename / remove / toggle
+   * collapsed). Only wired when `viewMode === 'folder'`.
+   */
+  folderActions?: {
+    onCreateFolder(name: string): void | Promise<void>;
+    onRenameFolder(id: string, name: string): void | Promise<void>;
+    onRemoveFolder(id: string): void | Promise<void>;
+    onToggleFolderCollapsed(id: string, collapsed: boolean): void | Promise<void>;
+  };
   onSelectSession(sessionId: string): void;
   onSelect(selection: NavSelection): void;
   onOpenSettings(): void;
@@ -383,6 +418,37 @@ export function SessionListPanel(props: {
       */}
 
       <section className="maka-session-list" aria-label={sessionListTitle}>
+        {/* PR-FOLDERS: view-mode segmented toggle. Only rendered for the
+            `chats` filter (the only filter with folder grouping). Hidden
+            when collapsed — there's no room for a toggle in icon-rail mode. */}
+        {props.viewMode &&
+          props.onViewModeChange &&
+          !props.sidebarCollapsed &&
+          props.selection.section === 'sessions' &&
+          props.selection.filter === 'chats' && (
+            <div className="maka-session-view-toggle" role="group" aria-label="会话分组方式">
+              <UiButton
+                type="button"
+                variant="quiet"
+                size="nav"
+                className={cn('maka-session-view-toggle-option', props.viewMode === 'status' && 'is-active')}
+                onClick={() => props.onViewModeChange?.('status')}
+                aria-pressed={props.viewMode === 'status'}
+              >
+                按状态
+              </UiButton>
+              <UiButton
+                type="button"
+                variant="quiet"
+                size="nav"
+                className={cn('maka-session-view-toggle-option', props.viewMode === 'folder' && 'is-active')}
+                onClick={() => props.onViewModeChange?.('folder')}
+                aria-pressed={props.viewMode === 'folder'}
+              >
+                按文件夹
+              </UiButton>
+            </div>
+          )}
         {props.sessions.length === 0 ? (
           // WAWQAQ msg `f56f38c1` (2026-06-20): the create-session CTA
           // belongs in the sidebar header / nav rail, never in the
@@ -425,6 +491,9 @@ export function SessionListPanel(props: {
               staleSessionIds={props.staleSessionIds}
               onSelectSession={props.onSelectSession}
               rowActions={props.rowActions}
+              viewMode={props.viewMode}
+              folders={props.folders}
+              folderActions={props.folderActions}
             />
           </OverlayScrollArea>
         )}
@@ -494,12 +563,33 @@ function SessionListGroups(props: {
   staleSessionIds?: Set<string>;
   onSelectSession(sessionId: string): void;
   rowActions?: SessionRowActions;
+  /** PR-FOLDERS: folder view mode + folder metadata + folder ops. */
+  viewMode?: 'status' | 'folder';
+  folders?: SessionFolder[];
+  folderActions?: {
+    onCreateFolder(name: string): void | Promise<void>;
+    onRenameFolder(id: string, name: string): void | Promise<void>;
+    onRemoveFolder(id: string): void | Promise<void>;
+    onToggleFolderCollapsed(id: string, collapsed: boolean): void | Promise<void>;
+  };
 }) {
+  const isFolderView = props.viewMode === 'folder';
   const [expandedByKey, setExpandedByKey] = useState<Record<string, boolean>>(() => {
     const out: Record<string, boolean> = {};
     for (const g of props.groups) out[g.key] = g.defaultExpanded;
     return out;
   });
+  // Folder rename inline-edit state, keyed on folder id.
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [folderDraft, setFolderDraft] = useState('');
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!renamingFolderId) return;
+    const input = folderInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [renamingFolderId]);
   // Ensure newly-appearing groups inherit their defaultExpanded value
   // without overriding user-toggled state.
   useEffect(() => {
@@ -521,8 +611,27 @@ function SessionListGroups(props: {
         const expanded = expandedByKey[group.key] ?? group.defaultExpanded;
         const toggle = () =>
           setExpandedByKey((current) => ({ ...current, [group.key]: !expanded }));
+        // PR-FOLDERS: in folder view, real folders (collapsible) carry
+        // hover-revealed rename/delete actions and persist their
+        // collapsed state to the folder store. The synthetic 未分组
+        // group shows a "新建文件夹" affordance instead.
+        const folder = isFolderView ? props.folders?.find((f) => f.id === group.key) : undefined;
+        const isUngroupedFolder = isFolderView && group.key === UNGROUPED_FOLDER_KEY;
+        const commitFolderRename = () => {
+          const id = renamingFolderId;
+          const trimmed = folderDraft.trim();
+          setRenamingFolderId(null);
+          if (!id || !trimmed || !props.folderActions) return;
+          void props.folderActions.onRenameFolder(id, trimmed);
+        };
+        const handleFolderToggle = () => {
+          toggle();
+          if (folder && props.folderActions) {
+            void props.folderActions.onToggleFolderCollapsed(folder.id, expanded);
+          }
+        };
         return (
-          <div key={group.key} className="maka-list-group" data-collapsible={group.collapsible || undefined}>
+          <div key={group.key} className="maka-list-group" data-collapsible={group.collapsible || undefined} data-folder-group={isFolderView ? 'true' : undefined}>
             {group.collapsible ? (
               /* PR-LIST-GROUP-TOGGLE-PRIMITIVE-0 (round 10/30):
                  disclosure-pattern toggle (aria-expanded +
@@ -530,33 +639,122 @@ function SessionListGroups(props: {
                  collapsible group header shares the same
                  focus-visible + `:active` contract as every
                  other interactive surface in the session list. */
-              <UiButton
-                type="button"
-                variant="quiet"
-                size="nav"
-                className="maka-list-group-label maka-list-group-toggle"
-                onClick={toggle}
-                aria-expanded={expanded}
-                aria-controls={`maka-list-group-body-${group.key}`}
-              >
-                <ChevronRight
-                  size={12}
-                  strokeWidth={2}
-                  aria-hidden="true"
-                  style={{
-                    transform: expanded ? 'rotate(90deg)' : undefined,
-                    transition: 'transform 140ms var(--ease-out-strong)',
-                  }}
-                />
-                <span>{group.label}</span>
-                {/* Collapsed history buckets keep a subdued count so users
-                  can tell whether expanding the group is worth it. Open
-                  groups intentionally omit counts to keep the rail flat. */}
-                <span className="maka-list-group-count">（{group.sessions.length}）</span>
-              </UiButton>
+              <div className="maka-list-group-label-row">
+                {renamingFolderId === group.key ? (
+                  <form
+                    className="maka-list-group-rename"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      commitFolderRename();
+                    }}
+                  >
+                    <input
+                      ref={folderInputRef}
+                      className="maka-list-group-rename-input"
+                      value={folderDraft}
+                      onChange={(event) => setFolderDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.preventDefault();
+                          setRenamingFolderId(null);
+                        }
+                      }}
+                      onBlur={commitFolderRename}
+                      maxLength={60}
+                      aria-label="文件夹名称"
+                    />
+                  </form>
+                ) : (
+                  <UiButton
+                    type="button"
+                    variant="quiet"
+                    size="nav"
+                    className="maka-list-group-label maka-list-group-toggle"
+                    onClick={isFolderView ? handleFolderToggle : toggle}
+                    aria-expanded={expanded}
+                    aria-controls={`maka-list-group-body-${group.key}`}
+                  >
+                    {isFolderView ? (
+                      <Folder size={13} strokeWidth={1.75} aria-hidden="true" className="maka-list-group-folder-icon" />
+                    ) : (
+                      <ChevronRight
+                        size={12}
+                        strokeWidth={2}
+                        aria-hidden="true"
+                        style={{
+                          transform: expanded ? 'rotate(90deg)' : undefined,
+                          transition: 'transform 140ms var(--ease-out-strong)',
+                        }}
+                      />
+                    )}
+                    <span>{group.label}</span>
+                    {/* Collapsed history buckets keep a subdued count so users
+                      can tell whether expanding the group is worth it. Open
+                      groups intentionally omit counts to keep the rail flat. */}
+                    <span className="maka-list-group-count">（{group.sessions.length}）</span>
+                  </UiButton>
+                )}
+                {isFolderView && props.folderActions && renamingFolderId !== group.key && (
+                  <div className="maka-list-group-folder-actions" aria-hidden={expanded ? undefined : 'true'}>
+                    <UiButton
+                      type="button"
+                      variant="quiet"
+                      size="nav"
+                      className={cn('maka-list-row-action', rowActionVariants())}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (folder) {
+                          setFolderDraft(folder.name);
+                          setRenamingFolderId(folder.id);
+                        }
+                      }}
+                      aria-label="重命名文件夹"
+                      title="重命名文件夹"
+                      tabIndex={-1}
+                    >
+                      <Pencil size={13} strokeWidth={1.75} aria-hidden="true" />
+                    </UiButton>
+                    <UiButton
+                      type="button"
+                      variant="quiet"
+                      size="nav"
+                      className={cn('maka-list-row-action', rowActionVariants({ tone: 'danger' }))}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (folder) void props.folderActions?.onRemoveFolder(folder.id);
+                      }}
+                      aria-label="删除文件夹"
+                      title="删除文件夹（会话将移至未分组）"
+                      tabIndex={-1}
+                    >
+                      <Trash2 size={13} strokeWidth={1.75} aria-hidden="true" />
+                    </UiButton>
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="maka-list-group-label">
-                <span>{group.label}</span>
+              <div className="maka-list-group-label-row">
+                <div className="maka-list-group-label">
+                  <span>{group.label}</span>
+                </div>
+                {isUngroupedFolder && props.folderActions && (
+                  <UiButton
+                    type="button"
+                    variant="quiet"
+                    size="nav"
+                    className={cn('maka-list-row-action', rowActionVariants())}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const name = window.prompt('文件夹名称');
+                      if (name && name.trim()) void props.folderActions?.onCreateFolder(name.trim());
+                    }}
+                    aria-label="新建文件夹"
+                    title="新建文件夹"
+                    tabIndex={-1}
+                  >
+                    <FolderPlus size={13} strokeWidth={1.75} aria-hidden="true" />
+                  </UiButton>
+                )}
               </div>
             )}
             {expanded && (
@@ -570,6 +768,8 @@ function SessionListGroups(props: {
                     stale={props.staleSessionIds?.has(session.id) ?? false}
                     onSelect={props.onSelectSession}
                     actions={props.rowActions}
+                    folders={isFolderView ? props.folders : undefined}
+                    indent={isFolderView ? 1 : 0}
                   />
                 ))}
               </div>
@@ -709,11 +909,21 @@ function SessionRow(props: {
   stale?: boolean;
   onSelect(sessionId: string): void;
   actions?: SessionRowActions;
+  /**
+   * PR-FOLDERS: indentation level. `0` = no indent (status view or
+   * top-level), `1` = one level indented under a folder header. Drives
+   * `data-indent` for CSS padding-inline-start.
+   */
+  indent?: 0 | 1;
+  /** Folder list for the move-to-folder menu (folder view only). */
+  folders?: SessionFolder[];
 }) {
   const { session, active, streaming, stale, actions, onSelect } = props;
+  const indent = props.indent ?? 0;
   const [editing, setEditing] = useState(false);
   const [actionsVisible, setActionsVisible] = useState(false);
   const [pendingAction, setPendingAction] = useState<SessionRowActionId | null>(null);
+  const [moveMenuOpen, setMoveMenuOpen] = useState(false);
   const rowMountedRef = useRef(true);
   const pendingActionRef = useRef<SessionRowActionId | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -798,10 +1008,12 @@ function SessionRow(props: {
       data-editing={editing}
       data-streaming={streaming ? 'true' : undefined}
       data-stale={stale ? 'true' : undefined}
+      data-indent={indent === 0 ? undefined : String(indent)}
       onMouseEnter={() => setActionsVisible(true)}
       onMouseLeave={(event) => {
         if (event.currentTarget.contains(document.activeElement)) return;
         setActionsVisible(false);
+        setMoveMenuOpen(false);
       }}
       onFocus={() => setActionsVisible(true)}
       onBlur={handleRowBlur}
@@ -1018,6 +1230,93 @@ function SessionRow(props: {
               ? <ArchiveRestore size={14} strokeWidth={1.75} aria-hidden="true" />
               : <Archive size={14} strokeWidth={1.75} aria-hidden="true" />}
           </UiButton>
+          {/* PR-FOLDERS: move-to-folder menu. Only rendered in folder view
+              (when `actions.onMoveToFolder` + `folders` are wired). The
+              menu lists every folder + a 移出文件夹 entry; clicking one
+              fires `onMoveToFolder` and closes the menu. */}
+          {actions?.onMoveToFolder && props.folders !== undefined && (
+            <div className="maka-list-row-move-wrapper">
+              <UiButton
+                type="button"
+                variant="quiet"
+                size="nav"
+                className={cn('maka-list-row-action', rowActionVariants())}
+                tabIndex={actionTabIndex}
+                onClick={(event) => {
+                  stopPropagation(event);
+                  setMoveMenuOpen((open) => !open);
+                }}
+                aria-label="移动到文件夹"
+                aria-haspopup="menu"
+                aria-expanded={moveMenuOpen}
+                aria-busy={pendingAction === 'move' ? 'true' : undefined}
+                data-pending={pendingAction === 'move' ? 'true' : undefined}
+                data-active={Boolean(session.folderId)}
+                disabled={actionBusy}
+                title="移动到文件夹"
+              >
+                <MoveRight size={14} strokeWidth={1.75} aria-hidden="true" />
+              </UiButton>
+              {moveMenuOpen && (
+                <div className="maka-list-row-move-menu" role="menu" aria-label="移动到文件夹">
+                  <div className="maka-list-row-move-menu-header">
+                    <span>移动到文件夹</span>
+                    <UiButton
+                      type="button"
+                      variant="quiet"
+                      size="nav"
+                      className={cn('maka-list-row-action', rowActionVariants())}
+                      onClick={(event) => {
+                        stopPropagation(event);
+                        setMoveMenuOpen(false);
+                      }}
+                      aria-label="关闭"
+                      tabIndex={-1}
+                    >
+                      <X size={12} strokeWidth={2} aria-hidden="true" />
+                    </UiButton>
+                  </div>
+                  {session.folderId && (
+                    <UiButton
+                      type="button"
+                      variant="quiet"
+                      size="nav"
+                      className="maka-list-row-move-menu-item"
+                      onClick={(event) => {
+                        stopPropagation(event);
+                        setMoveMenuOpen(false);
+                        runRowAction('move', () => actions.onMoveToFolder!(session.id, null));
+                      }}
+                    >
+                      移出文件夹
+                    </UiButton>
+                  )}
+                  {props.folders.length === 0 && !session.folderId && (
+                    <div className="maka-list-row-move-menu-empty">还没有文件夹</div>
+                  )}
+                  {props.folders.map((folder) => (
+                    <UiButton
+                      key={folder.id}
+                      type="button"
+                      variant="quiet"
+                      size="nav"
+                      className="maka-list-row-move-menu-item"
+                      data-current={session.folderId === folder.id ? 'true' : undefined}
+                      onClick={(event) => {
+                        stopPropagation(event);
+                        setMoveMenuOpen(false);
+                        if (session.folderId === folder.id) return;
+                        runRowAction('move', () => actions.onMoveToFolder!(session.id, folder.id));
+                      }}
+                    >
+                      <Folder size={13} strokeWidth={1.75} aria-hidden="true" />
+                      <span>{folder.name}</span>
+                    </UiButton>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <UiButton
             type="button"
             variant="quiet"

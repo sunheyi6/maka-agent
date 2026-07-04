@@ -28,6 +28,13 @@ export interface SessionStore {
   unarchive(sessionId: string): Promise<void>;
   setFlagged(sessionId: string, isFlagged: boolean): Promise<void>;
   rename(sessionId: string, name: string): Promise<void>;
+  /**
+   * Move a session into a folder, or out of all folders when folderId is
+   * null/undefined. Does not validate the folder exists — the folder store
+   * is the source of truth for folder metadata; orphan folderIds just
+   * render as 未分组 until the session is moved again.
+   */
+  setFolder(sessionId: string, folderId: string | null): Promise<void>;
   remove(sessionId: string): Promise<void>;
 }
 
@@ -250,6 +257,10 @@ class FileSessionStore implements SessionStore {
       throw new Error(normalized.error);
     }
     await this.updateHeader(sessionId, { name: normalized.value });
+  }
+
+  async setFolder(sessionId: string, folderId: string | null): Promise<void> {
+    await this.updateHeader(sessionId, { folderId: folderId ?? null });
   }
 
   async remove(sessionId: string): Promise<void> {
@@ -500,6 +511,7 @@ function toSummary(header: SessionHeader, messages: StoredMessage[] = []): Sessi
     ...(header.statusUpdatedAt !== undefined ? { statusUpdatedAt: header.statusUpdatedAt } : {}),
     ...(header.parentSessionId ? { parentSessionId: header.parentSessionId } : {}),
     ...(header.branchOfTurnId ? { branchOfTurnId: header.branchOfTurnId } : {}),
+    ...(header.folderId ? { folderId: header.folderId } : {}),
     backend: header.backend,
     llmConnectionSlug: header.llmConnectionSlug,
     model: header.model,

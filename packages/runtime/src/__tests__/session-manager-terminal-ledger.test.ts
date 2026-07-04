@@ -1222,6 +1222,10 @@ class TinySessionStore implements SessionStore {
     await this.updateHeader(sessionId, { isFlagged });
   }
 
+  async setFolder(sessionId: string, folderId: string | null): Promise<void> {
+    await this.updateHeader(sessionId, { folderId: folderId ?? null });
+  }
+
   async rename(sessionId: string, name: string): Promise<void> {
     await this.updateHeader(sessionId, { name });
   }

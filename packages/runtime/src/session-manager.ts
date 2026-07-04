@@ -176,6 +176,8 @@ export interface SessionStore {
   unarchive(sessionId: string): Promise<void>;
   setFlagged(sessionId: string, isFlagged: boolean): Promise<void>;
   rename(sessionId: string, name: string): Promise<void>;
+  /** Move a session into a folder, or out of all folders when folderId is null. */
+  setFolder(sessionId: string, folderId: string | null): Promise<void>;
   remove(sessionId: string): Promise<void>;
 }
 
@@ -404,6 +406,12 @@ export class SessionManager {
 
   async renameSession(sessionId: string, name: string): Promise<void> {
     await this.deps.store.rename(sessionId, name);
+    const header = await this.deps.store.readHeader(sessionId).catch(() => undefined);
+    if (header) this.runtimeKernel.updateCachedHeader(sessionId, header);
+  }
+
+  async setFolder(sessionId: string, folderId: string | null): Promise<void> {
+    await this.deps.store.setFolder(sessionId, folderId);
     const header = await this.deps.store.readHeader(sessionId).catch(() => undefined);
     if (header) this.runtimeKernel.updateCachedHeader(sessionId, header);
   }

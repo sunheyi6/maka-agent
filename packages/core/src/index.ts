@@ -109,6 +109,16 @@ export {
   isTurnStatus,
 } from './session.js';
 
+// folders.ts (PR-FOLDERS)
+export type {
+  SessionFolder,
+  SessionFolderGroupId,
+} from './folders.js';
+export {
+  UNGROUPED_FOLDER_KEY,
+  UNGROUPED_FOLDER_LABEL,
+} from './folders.js';
+
 // agent-run.ts
 export type {
   AgentRunEvent,

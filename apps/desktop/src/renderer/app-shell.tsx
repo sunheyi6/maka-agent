@@ -5,6 +5,7 @@ import type {
   PermissionMode,
   PlanReminder,
   SessionEventStreamSnapshot,
+  SessionFolder,
   SessionSummary,
   SettingsSection,
   StoredMessage,
@@ -53,6 +54,7 @@ function BrowserPanelFallback() {
 }
 import { deriveChatHeaderAlert } from './chat-header-alert';
 import { deriveStaleSessionIds } from './stale-sessions';
+import { deriveSessionFolderGroups } from './session-folder-grouping';
 import { deriveSessionStatusGroups } from './session-status-grouping';
 import {
   normalizeSessionSummaryForDisplay,
@@ -71,9 +73,12 @@ import { countSessions, filterSessions, readNavSelection } from './nav-selection
 import {
   readSessionListCollapsed,
   readSessionListWidth,
+  readSessionViewMode,
   SESSION_LIST_COLLAPSED_WIDTH,
   SESSION_LIST_EXPANDED_MAX_WIDTH,
   SESSION_LIST_EXPANDED_MIN_WIDTH,
+  writeSessionViewMode,
+  type SessionViewMode,
 } from './session-list-layout';
 import {
   modelSetupToastCopy,
@@ -116,6 +121,12 @@ export function AppShell() {
   const toastApi = useToast();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const sessionsRef = useRef<SessionSummary[]>([]);
+  // PR-FOLDERS: folder list + view-mode toggle for the sidebar session
+  // list. `viewMode` persists to localStorage so the user's choice
+  // survives restarts; folders are fetched from the folder store and
+  // refreshed on `sessions:changed` (reason `folder-change`).
+  const [folders, setFolders] = useState<SessionFolder[]>([]);
+  const [sessionViewMode, setSessionViewMode] = useState<SessionViewMode>(() => readSessionViewMode());
   const sessionReadBoundariesRef = useRef<SessionReadBoundaries>({});
   const sessionListRefresherRef = useRef<SessionListRefresher | null>(null);
   if (!sessionListRefresherRef.current) {
@@ -285,6 +296,14 @@ export function AppShell() {
   const sessionStatusGroups = useMemo(
     () => deriveSessionStatusGroups(sessions, { pinFirst: true }),
     [sessions],
+  );
+  // PR-FOLDERS: folder-derived groups for the folder view mode. Same
+  // shape as `sessionStatusGroups` so the panel consumes either via the
+  // same `statusGroups` prop. Only computed when the user has switched
+  // to the folder view.
+  const sessionFolderGroups = useMemo(
+    () => (sessionViewMode === 'folder' ? deriveSessionFolderGroups(sessions, folders) : undefined),
+    [sessionViewMode, sessions, folders],
   );
   const liveTools = useMemo(() => (activeId ? liveToolsBySession[activeId] ?? [] : []), [activeId, liveToolsBySession]);
   const hasInFlightLiveTools = useMemo(() => hasInFlightToolActivity(liveTools), [liveTools]);
@@ -491,11 +510,17 @@ export function AppShell() {
     unarchiveSession,
     renameSession,
     deleteSession,
+    moveSessionToFolder,
+    createFolder,
+    renameFolder,
+    removeFolder,
+    toggleFolderCollapsed,
   } = createAppShellSessionRowActions({
     activeIdRef,
     clearSessionRendererState,
     pendingSessionRowActionsRef,
     refreshSessions,
+    refreshFolders,
     sessionsRef,
     setActiveId,
     setMessages,
@@ -924,6 +949,7 @@ export function AppShell() {
     refreshShellSettings,
     refreshSkills,
     refreshSessions,
+    refreshFolders,
     rendererMountedRef,
     setActiveId,
     setMessages,
@@ -987,6 +1013,23 @@ export function AppShell() {
 
   async function refreshSessions(): Promise<SessionSummary[]> {
     return sessionListRefresherRef.current!.refresh();
+  }
+
+  // PR-FOLDERS: fetch the folder list from the folder store. Called on
+  // mount and on `sessions:changed` events with reason `folder-change`.
+  async function refreshFolders(): Promise<void> {
+    try {
+      const next = await window.maka.folders.list();
+      setFolders(next);
+    } catch (error) {
+      toastApi.error('载入文件夹失败', generalizedErrorMessageChinese(error, '文件夹列表暂时无法载入，请稍后重试。'));
+    }
+  }
+
+  function changeSessionViewMode(mode: SessionViewMode): void {
+    setSessionViewMode(mode);
+    writeSessionViewMode(mode);
+    if (mode === 'folder') void refreshFolders();
   }
 
   async function refreshShellSettings() {
@@ -1240,7 +1283,10 @@ export function AppShell() {
             planReminders={planReminders}
             streamingSessionIds={streamingSessionIds}
             staleSessionIds={staleSessionIds}
-            statusGroups={sessionStatusGroups}
+            statusGroups={sessionFolderGroups ?? sessionStatusGroups}
+            viewMode={sessionViewMode}
+            onViewModeChange={changeSessionViewMode}
+            folders={folders}
             onSelect={setNavSelection}
             onSelectSession={(sessionId) => {
               openSessionInChat(sessionId);
@@ -1265,6 +1311,13 @@ export function AppShell() {
               onUnarchive: (sessionId) => unarchiveSession(sessionId),
               onRename: (sessionId, name) => renameSession(sessionId, name),
               onDelete: (sessionId) => deleteSession(sessionId),
+              onMoveToFolder: (sessionId, folderId) => moveSessionToFolder(sessionId, folderId),
+            }}
+            folderActions={{
+              onCreateFolder: (name) => createFolder(name),
+              onRenameFolder: (id, name) => renameFolder(id, name),
+              onRemoveFolder: (id) => removeFolder(id),
+              onToggleFolderCollapsed: (id, collapsed) => toggleFolderCollapsed(id, collapsed),
             }}
             sidebarCollapsed={sessionListCollapsed}
           />

@@ -900,6 +900,193 @@
   box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.18);
 }
 
+/* ============================================================================
+ * PR-FOLDERS: folder view mode — segmented toggle, folder group headers,
+ * indented session rows, move-to-folder menu.
+ * ========================================================================== */
+
+/* Segmented view-mode toggle (按状态 / 按文件夹). Sits above the session
+   list inside `.maka-session-list`. Only rendered for the chats filter in
+   expanded sidebar mode. */
+.maka-session-view-toggle {
+  display: flex;
+  gap: 2px;
+  margin: 0 var(--space-1-5) var(--space-1-5);
+  padding: 2px;
+  border-radius: var(--radius-control);
+  background: oklch(from var(--foreground) l c h / 0.05);
+}
+
+.maka-session-view-toggle-option {
+  flex: 1;
+  min-height: 24px;
+  padding: 2px var(--space-1-5);
+  border: 0;
+  border-radius: calc(var(--radius-control) - 1px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-caption);
+  font-weight: 500;
+  text-align: center;
+  transition:
+    background-color var(--duration-quick) var(--ease-out-strong),
+    color var(--duration-quick) var(--ease-out-strong);
+}
+
+.maka-session-view-toggle-option:hover {
+  color: var(--foreground);
+}
+
+.maka-session-view-toggle-option.is-active {
+  background: var(--background);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: 0 1px 2px oklch(from var(--foreground) l c h / 0.08);
+}
+
+/* Folder group label row — a flex container that holds the toggle button
+   on the left and the folder action buttons (rename/delete) on the right.
+   Replaces the bare `.maka-list-group-label` layout when in folder view. */
+.maka-list-group-label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  padding-right: var(--space-1-5);
+}
+
+.maka-list-group-label-row .maka-list-group-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.maka-list-group-folder-icon {
+  color: var(--muted-foreground);
+  flex: none;
+}
+
+/* Folder hover actions (rename / delete). Hidden by default; revealed on
+   group header hover. Mirrors the row-action reveal pattern. */
+.maka-list-group-folder-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-out-strong);
+}
+
+.maka-list-group-label-row:hover .maka-list-group-folder-actions,
+.maka-list-group-label-row:focus-within .maka-list-group-folder-actions {
+  opacity: 1;
+}
+
+.maka-list-group-folder-actions[aria-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Inline folder rename input. */
+.maka-list-group-rename {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-1-5) var(--space-0-5);
+}
+
+.maka-list-group-rename-input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+  outline: 0;
+  padding: 1px 0;
+  border-bottom: 1px solid oklch(from var(--focus-ring) l c h / 0.4);
+}
+
+.maka-list-group-rename-input:focus {
+  border-bottom-color: var(--focus-ring);
+}
+
+/* Indented session row under a folder header. One level only —
+   `data-indent="1"` adds inline-start padding so the row reads as
+   nested under its folder group. Skipped when the sidebar is
+   collapsed (no room in icon-rail mode). */
+.maka-list-row[data-indent="1"] .maka-list-row-main {
+  padding-inline-start: var(--space-5);
+}
+
+.maka-session-panel[data-collapsed="true"] .maka-list-row[data-indent="1"] .maka-list-row-main {
+  padding-inline-start: var(--space-2-5);
+}
+
+/* Move-to-folder menu — a small popover anchored to the move action
+   button. Absolute-positioned within the row so it overlays the list. */
+.maka-list-row-move-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.maka-list-row-move-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 180px;
+  max-width: 240px;
+  margin-top: 2px;
+  padding: var(--space-0-5);
+  border-radius: var(--radius-control);
+  background: var(--background-elevated, var(--background));
+  border: 1px solid oklch(from var(--foreground) l c h / 0.1);
+  box-shadow: 0 4px 16px oklch(from var(--foreground) l c h / 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.maka-list-row-move-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-1) var(--space-0-5) var(--space-1-5);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-caption);
+  font-weight: 600;
+}
+
+.maka-list-row-move-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 28px;
+  padding: var(--space-0-5) var(--space-1-5);
+  border: 0;
+  border-radius: calc(var(--radius-control) - 1px);
+  background: transparent;
+  color: var(--foreground);
+  font-size: var(--font-size-ui);
+  text-align: left;
+  transition: background-color var(--duration-quick) var(--ease-out-strong);
+}
+
+.maka-list-row-move-menu-item:hover {
+  background: oklch(from var(--foreground) l c h / 0.06);
+}
+
+.maka-list-row-move-menu-item[data-current="true"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.maka-list-row-move-menu-empty {
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-caption);
+}
+
 .maka-prompt-suggestions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

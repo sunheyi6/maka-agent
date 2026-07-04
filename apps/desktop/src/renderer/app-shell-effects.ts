@@ -175,6 +175,7 @@ export function useAppShellBootstrapSubscriptions(options: {
   refreshShellSettings: () => Promise<void>;
   refreshSkills: (options?: { shouldShowError?: () => boolean }) => Promise<void>;
   refreshSessions: () => Promise<SessionSummary[]>;
+  refreshFolders: () => Promise<void>;
   rendererMountedRef: RefBox<boolean>;
   setActiveId: (sessionId: string | undefined) => void;
   setMessages: (messages: StoredMessage[]) => void;
@@ -204,6 +205,7 @@ export function useAppShellBootstrapSubscriptions(options: {
     refreshShellSettings,
     refreshSkills,
     refreshSessions,
+    refreshFolders,
     rendererMountedRef,
     setActiveId,
     setMessages,
@@ -225,11 +227,15 @@ export function useAppShellBootstrapSubscriptions(options: {
       void refreshMemoryActive('载入本地记忆状态失败');
       void refreshSkills();
       void refreshPlanReminders();
+      void refreshFolders();
       void applyVisualSmokeFixture();
     });
     const unsubscribeConnections = window.maka.connections.subscribeEvents(handleConnectionEvent);
     const unsubscribeSessionChanges = window.maka.sessions.subscribeChanges((event) => {
       void refreshSessions();
+      if (event.reason === 'folder-change') {
+        void refreshFolders();
+      }
       if (event.sessionId) {
         setSessionEventHealthBySession((current) => {
           const previous = current[event.sessionId!];

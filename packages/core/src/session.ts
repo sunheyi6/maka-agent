@@ -90,6 +90,15 @@ export interface SessionHeader {
   parentSessionId?: string;
   branchOfTurnId?: string;
 
+  /**
+   * Optional folder this session belongs to (folder-grouped sidebar view,
+   * PR-FOLDERS). `null`/`undefined` means "未分组" (top-level, no folder).
+   * Stored on the header so it survives restarts and is shared across
+   * devices via the workspace. Forward-compatible: older headers without
+   * this field are treated as `null` on read.
+   */
+  folderId?: string | null;
+
   // Unread tracking
   lastReadMessageId?: string;
   hasUnread: boolean;
@@ -123,6 +132,8 @@ export interface SessionSummary {
   statusUpdatedAt?: number;
   parentSessionId?: string;
   branchOfTurnId?: string;
+  /** Folder this session belongs to, or null for 未分组. See SessionHeader.folderId. */
+  folderId?: string | null;
   backend: BackendKind;
   llmConnectionSlug: string;
   /** Sticky session default model id for renderer/header display. */
@@ -141,6 +152,7 @@ export type SessionChangedReason =
   | 'mode-change'
   | 'status-change'
   | 'turn-status-change'
+  | 'folder-change'
   | 'rebound';
 
 export interface SessionChangedEvent {
