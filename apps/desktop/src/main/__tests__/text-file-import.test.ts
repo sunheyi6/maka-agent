@@ -435,6 +435,21 @@ describe('text file context import', () => {
     assert.match(uiSource, /rememberComposerHistoryEntry\(promptHistoryRef\.current\.entries, text\)/);
     assert.match(uiSource, /navigateComposerHistory\(/);
     assert.doesNotMatch(uiSource, /localStorage\.setItem\([^)]*draft/i);
+    // PR-GLOBAL-INPUT-HISTORY: the Composer must be wired into the
+    // persisted global history — seed from localStorage at init, save a
+    // sent message, and navigate with a safe guard so a bare arrow key
+    // in a multi-line draft still moves the caret.
+    assert.match(uiSource, /import \{ readGlobalInputHistory, saveGlobalInputHistoryEntry \} from '\.\/input-history\.js';/);
+    assert.match(uiSource, /entries: readGlobalInputHistory\(\)/, 'Composer must seed its history from the persisted global store at init');
+    assert.match(uiSource, /saveGlobalInputHistoryEntry\(text\)/, 'Composer must persist every successfully sent prompt to the global store');
+    // Safe navigation: bare arrow keys only start history when the input
+    // is empty or the user is already navigating. The `canStartHistory`
+    // / `isNavigatingHistory` guard must be present (not the unconditional
+    // `if (el)` regression that hijacked multi-line drafts).
+    assert.match(uiSource, /isNavigatingHistory = promptHistoryRef\.current\.index >= 0/);
+    assert.match(uiSource, /canStartHistory = Boolean\(el && !el\.value\.trim\(\)\)/);
+    assert.match(uiSource, /explicit \|\| isNavigatingHistory \|\| canStartHistory/);
+    assert.doesNotMatch(uiSource, /\n\s*if \(el\) \{\n\s*const next = navigateComposerHistory/);
   });
 
   it('appends prompt suggestions in the main composer but replaces in the first-run hero', async () => {
