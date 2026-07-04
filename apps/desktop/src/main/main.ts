@@ -1,6 +1,6 @@
 import { app, ipcMain, nativeImage, safeStorage, shell } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, realpath } from 'node:fs/promises';
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { release as osRelease, arch as osArch } from 'node:os';
 import {
@@ -108,6 +108,7 @@ import { handleQuickChatStart as runQuickChatStart, type QuickChatResult } from 
 import { probeOfficeCli } from './officecli-probe.js';
 import { resolveOpenPath, type OpenPathResult } from './open-path-guard.js';
 import { resolveProjectGitInfo, resolveProjectRoot } from './project-context.js';
+import { listLocalBranches, checkoutBranch } from './git-branch.js';
 import { createDailyReviewArchiveStore } from './daily-review-archive-store.js';
 import { botTestErrorMessage, buildSettingsUpdateResult, maskAppSettings, preserveSensitivePlaceholders, toSettingsTestResult } from './settings-ipc-helpers.js';
 import {
@@ -790,7 +791,35 @@ function proxyTestFailureMessage(result: TestProxyResult): string {
 }
 
 function registerIpc(): void {
+  const LAST_PROJECT_PATH_FILE = join(workspaceRoot, 'last-project-path.json');
+
   let selectedProjectRoot: string | null = null;
+
+  async function loadLastProjectPath(): Promise<string | null> {
+    try {
+      const raw = await readFile(LAST_PROJECT_PATH_FILE, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.projectPath === 'string' && parsed.projectPath) {
+        return parsed.projectPath;
+      }
+    } catch {
+      // File missing or invalid — first run.
+    }
+    return null;
+  }
+
+  async function saveLastProjectPath(projectPath: string): Promise<void> {
+    try {
+      await writeFile(LAST_PROJECT_PATH_FILE, JSON.stringify({ projectPath }), 'utf8');
+    } catch {
+      // Best-effort; failure should not block the selection.
+    }
+  }
+
+  // Initialize from persisted state.
+  loadLastProjectPath().then((savedPath) => {
+    if (savedPath) selectedProjectRoot = savedPath;
+  });
 
   async function currentProjectRoot(): Promise<string> {
     if (selectedProjectRoot) return selectedProjectRoot;
@@ -848,11 +877,56 @@ function registerIpc(): void {
       if (!selectedPath) return { ok: false, reason: 'missing-selection' };
       const projectPath = await resolveProjectRoot([selectedPath]);
       selectedProjectRoot = projectPath;
+      void saveLastProjectPath(projectPath);
       return {
         ok: true,
         projectPath,
         projectGit: await resolveProjectGitInfo(projectPath),
       };
+    },
+  );
+  ipcMain.handle(
+    'app:selectProjectRoot',
+    async (_event, projectPath: unknown): Promise<
+      | { ok: true; projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }
+      | { ok: false; reason: 'invalid-path' | 'not-found' }
+    > => {
+      if (typeof projectPath !== 'string' || !projectPath) {
+        return { ok: false, reason: 'invalid-path' };
+      }
+      try {
+        const resolved = await resolveProjectRoot([projectPath]);
+        selectedProjectRoot = resolved;
+        void saveLastProjectPath(resolved);
+        return {
+          ok: true,
+          projectPath: resolved,
+          projectGit: await resolveProjectGitInfo(resolved),
+        };
+      } catch {
+        return { ok: false, reason: 'not-found' };
+      }
+    },
+  );
+  ipcMain.handle(
+    'app:resolveProjectGitInfo',
+    async (_event, projectPath: unknown): Promise<{ projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }> => {
+      const resolved = typeof projectPath === 'string' ? await resolveProjectRoot([projectPath]) : await currentProjectRoot();
+      return { projectPath: resolved, projectGit: await resolveProjectGitInfo(resolved) };
+    },
+  );
+  ipcMain.handle('app:listGitBranches', async () => {
+    const projectPath = await currentProjectRoot();
+    return listLocalBranches(projectPath);
+  });
+  ipcMain.handle(
+    'app:checkoutGitBranch',
+    async (_event, branch: unknown): Promise<{ ok: boolean; branch?: string; reason?: string; message?: string }> => {
+      if (typeof branch !== 'string' || !branch) {
+        return { ok: false, reason: 'failed', message: '无效的分支名' };
+      }
+      const projectPath = await currentProjectRoot();
+      return checkoutBranch(projectPath, branch);
     },
   );
   registerMemoryIpc({ localMemory });

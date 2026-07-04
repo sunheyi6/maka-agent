@@ -160,6 +160,7 @@ describe('assistant streaming handoff', () => {
         isNewChatSendSurfaceActive: () => false,
         markSessionReadLocally: () => {},
         messageRetryPendingRef: { current: new Set<string>() },
+        projectPath: null,
         refreshSessions: async () => [],
         setActiveId: (sessionId) => {
           activeIdRef.current = sessionId;

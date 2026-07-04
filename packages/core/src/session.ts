@@ -113,6 +113,8 @@ export interface SessionSummary {
   id: string;
   cwd?: string;
   name: string;
+  /** Absolute working directory this session runs in. */
+  cwd?: string;
   isFlagged: boolean;
   isArchived: boolean;
   labels: string[];

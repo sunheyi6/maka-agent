@@ -433,6 +433,27 @@ declare global {
           | { ok: true; projectPath: string; projectGit: { isGitRepo: boolean; branch?: string } }
           | { ok: false; reason: 'cancelled' | 'missing-selection' }
         >;
+        selectProjectRoot(projectPath: string): Promise<
+          | { ok: true; projectPath: string; projectGit: { isGitRepo: boolean; branch?: string } }
+          | { ok: false; reason: 'invalid-path' | 'not-found' }
+        >;
+        resolveProjectGitInfo(projectPath: string): Promise<{
+          projectPath: string;
+          projectGit: { isGitRepo: boolean; branch?: string };
+        }>;
+        listGitBranches(): Promise<{
+          ok: boolean;
+          branches?: string[];
+          current?: string;
+          reason?: string;
+          message?: string;
+        }>;
+        checkoutGitBranch(branch: string): Promise<{
+          ok: boolean;
+          branch?: string;
+          reason?: string;
+          message?: string;
+        }>;
         openArtifactPath(
           artifactId: string,
         ): Promise<
