@@ -120,8 +120,31 @@ export function createMainWindowController(deps: MainWindowControllerDeps): Main
       // installer build pass. The asset path resolves from the built
       // dist/main/main.js (two levels up to apps/desktop, then assets).
       icon: join(import.meta.dirname, '..', '..', 'assets', 'icon.png'),
-      titleBarStyle: 'hiddenInset',
-      trafficLightPosition: MAIN_WINDOW_TRAFFIC_LIGHT_POSITION,
+      // PR-WINDOW-TITLEBAR-0: hide the native title bar so the renderer
+      // chrome can extend to the top edge on every platform. macOS keeps
+      // `hiddenInset` + traffic-light buttons (top-left); Windows uses
+      // `hidden` + `titleBarOverlay` so the OS draws native min/max/close
+      // buttons flush against the top-right corner. Linux falls back to
+      // the default frame (no overlay support is wired up yet).
+      ...(process.platform === 'darwin'
+        ? {
+            titleBarStyle: 'hiddenInset' as const,
+            trafficLightPosition: MAIN_WINDOW_TRAFFIC_LIGHT_POSITION,
+          }
+        : process.platform === 'win32'
+          ? {
+              titleBarStyle: 'hidden' as const,
+              titleBarOverlay: {
+                // Match the initial window background so the overlay
+                // doesn't flash a different color on the first frame;
+                // `isDark` / `initialBg` are computed above from the
+                // persisted theme + system preference.
+                color: initialBg,
+                symbolColor: isDark ? '#e6e6e8' : '#1c1d21',
+                height: 36,
+              },
+            }
+          : {}),
       // PR-SIDEBAR-IA-0 Phase 3 P0 fixup v5 (WAWQAQ msg `5b85fdb1`,
       // xuan `eea556cd`): explicit `resizable: true` so a future
       // patch can't silently disable window edge resize. Default is

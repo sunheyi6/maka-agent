@@ -378,11 +378,26 @@
      PR-CHAT-HEADER-STATUS-CLUSTER-0, which only relocated the status cluster and
      left the in-header pills overlapping. */
   --maka-workspace-top-actions-inset: calc(var(--maka-workspace-top-actions-right) + 126px);
+  /* PR-WINDOW-TITLEBAR-0: on Windows the native titleBarOverlay paints
+     min/max/close buttons flush against the top-right corner (~138px =
+     three 46px-wide controls). Shift the workspace toolbar and the
+     chat-header drag strip left by this width so neither sits under the
+     overlay controls. Default 0 on macOS/Linux (no overlay). */
+  --maka-titlebar-overlay-width: 0px;
 
   /* session list geometry */
   --w-sessionlist: 240px;
   --h-list-header: 52px;
 
+}
+
+/* PR-WINDOW-TITLEBAR-0: Windows uses `titleBarStyle: 'hidden'` +
+   `titleBarOverlay`, so the OS reserves a ~138px control strip in the
+   top-right corner. Push the workspace toolbar right offset past it
+   (the inset token derives from this and follows automatically). */
+[data-platform="win32"] {
+  --maka-titlebar-overlay-width: 138px;
+  --maka-workspace-top-actions-right: calc(24px + var(--maka-titlebar-overlay-width));
 }
 
 /* =============================================================================

@@ -870,3 +870,10 @@ contextBridge.exposeInMainWorld('maka', {
     },
   },
 });
+
+// PR-WINDOW-TITLEBAR-0: expose the OS platform as a data attribute on
+// <html> synchronously, before React mounts and before any CSS variable
+// resolution needs it. CSS uses `[data-platform="win32"]` to shift the
+// top-right workspace toolbar clear of the native titleBarOverlay
+// controls. `process.platform` is available in sandboxed preloads.
+document.documentElement.dataset.platform = process.platform;
