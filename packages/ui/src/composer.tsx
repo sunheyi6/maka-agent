@@ -343,26 +343,34 @@ export const Composer = forwardRef<
       return;
     }
     // PR-GLOBAL-INPUT-HISTORY: up/down arrow navigates the global input
-    // history at any time (not only when the textarea is empty). When
-    // navigating away from the current draft, the current value is saved
-    // as the draft so pressing ArrowDown (next) returns to it.
-    if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      const el = textareaRef.current;
-      if (el) {
-        const next = navigateComposerHistory(
-          promptHistoryRef.current,
-          event.key === 'ArrowUp' ? 'previous' : 'next',
-          el.value,
-        );
-        if (next.changed) {
-          event.preventDefault();
-          promptHistoryRef.current = next.state;
-          el.value = next.value;
-          saveCurrentDraft(next.value);
-          autoResize();
-          const length = el.value.length;
-          el.setSelectionRange(length, length);
-          return;
+    // history. Bare arrow keys only start navigation when the textarea is
+    // empty, or when the user is already mid-navigation (index >= 0); in a
+    // multi-line draft the caret keeps moving so editing isn't hijacked.
+    // Ctrl/Cmd + ArrowUp/ArrowDown is an explicit shortcut that always
+    // navigates history regardless of the current draft.
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      const explicit = Boolean(event.ctrlKey || event.metaKey);
+      const plainArrow = !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+      if (plainArrow || explicit) {
+        const el = textareaRef.current;
+        const isNavigatingHistory = promptHistoryRef.current.index >= 0;
+        const canStartHistory = Boolean(el && !el.value.trim());
+        if (el && (explicit || isNavigatingHistory || canStartHistory)) {
+          const next = navigateComposerHistory(
+            promptHistoryRef.current,
+            event.key === 'ArrowUp' ? 'previous' : 'next',
+            el.value,
+          );
+          if (next.changed) {
+            event.preventDefault();
+            promptHistoryRef.current = next.state;
+            el.value = next.value;
+            saveCurrentDraft(next.value);
+            autoResize();
+            const length = el.value.length;
+            el.setSelectionRange(length, length);
+            return;
+          }
         }
       }
     }
