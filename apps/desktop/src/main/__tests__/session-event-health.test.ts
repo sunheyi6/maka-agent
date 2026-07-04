@@ -96,16 +96,21 @@ describe('renderer session event health projection', () => {
     const main = await readRendererShellCombinedSource();
 
     assert.match(main, /const hasInFlightLiveTools = useMemo\(\(\) => hasInFlightToolActivity\(liveTools\), \[liveTools\]\);/);
-    assert.match(main, /activeStreaming\.length > 0 \|\| hasInFlightLiveTools \|\| Boolean\(activePermission\)/);
+    assert.match(main, /activeStreamingLive \|\| hasInFlightLiveTools \|\| Boolean\(activePermission\)/);
     assert.match(
       main,
-      /\}, \[activeId, activeSession\?\.status, activeStreaming\.length, hasInFlightLiveTools, activePermission\?\.requestId\]\);/,
+      /\}, \[activeId, activeSession\?\.status, activeStreamingLive, hasInFlightLiveTools, activePermission\?\.requestId\]\);/,
       'session event health effect must rerun when tool status changes terminal without changing liveTools.length',
     );
     assert.doesNotMatch(
       main,
       /activeStreaming\.length > 0 \|\| liveTools\.length > 0 \|\| Boolean\(activePermission\)/,
       'terminal completed/errored live tools must not keep the event stream health checker alive',
+    );
+    assert.doesNotMatch(
+      main,
+      /activeStreaming\.length > 0 \|\| hasInFlightLiveTools \|\| Boolean\(activePermission\)/,
+      'draining assistant text must not keep the event stream health checker alive',
     );
   });
 });

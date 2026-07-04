@@ -391,7 +391,7 @@ export function useSessionEventHealthPolling(options: {
   activeId: string | undefined;
   activePermission: PermissionRequestEvent | undefined;
   activeSession: SessionSummary | undefined;
-  activeStreaming: string;
+  activeStreamingLive: boolean;
   hasInFlightLiveTools: boolean;
   refreshMessages: (sessionId: string) => Promise<boolean>;
   refreshSessions: () => Promise<SessionSummary[]>;
@@ -402,7 +402,7 @@ export function useSessionEventHealthPolling(options: {
     activeId,
     activePermission,
     activeSession,
-    activeStreaming,
+    activeStreamingLive,
     hasInFlightLiveTools,
     refreshMessages,
     refreshSessions,
@@ -412,7 +412,7 @@ export function useSessionEventHealthPolling(options: {
 
   useEffect(() => {
     if (!activeId) return;
-    const hasLiveActivity = activeStreaming.length > 0 || hasInFlightLiveTools || Boolean(activePermission);
+    const hasLiveActivity = activeStreamingLive || hasInFlightLiveTools || Boolean(activePermission);
     const evaluate = () => {
       const result = evaluateSessionEventStreamSnapshot({
         previous: sessionEventHealthBySessionRef.current[activeId],
@@ -440,5 +440,5 @@ export function useSessionEventHealthPolling(options: {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [activeId, activeSession?.status, activeStreaming.length, hasInFlightLiveTools, activePermission?.requestId]);
+  }, [activeId, activeSession?.status, activeStreamingLive, hasInFlightLiveTools, activePermission?.requestId]);
 }

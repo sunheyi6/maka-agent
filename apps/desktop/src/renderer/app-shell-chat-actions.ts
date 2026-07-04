@@ -9,6 +9,7 @@ import {
 
 const USER_MESSAGE_VISIBLE_TIMEOUT_MS = 1_200;
 const USER_MESSAGE_VISIBLE_POLL_MS = 40;
+const REFRESH_MESSAGES_RETRY_DELAYS_MS = [120, 360] as const;
 
 type ComposerImportOwner = {
   sessionId: string | undefined;
@@ -30,6 +31,21 @@ type PendingNewChatPermissionMode = PermissionMode | null;
 type ToastApi = {
   error(title: string, description?: string): void;
 };
+
+async function readMessagesWithSettleRetry(sessionId: string): Promise<StoredMessage[]> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= REFRESH_MESSAGES_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      return await window.maka.sessions.readMessages(sessionId);
+    } catch (error) {
+      lastError = error;
+      const delayMs = REFRESH_MESSAGES_RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) break;
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
 
 export interface AppShellChatActions {
   send(text: string): Promise<boolean>;
@@ -198,7 +214,7 @@ export function createAppShellChatActions(deps: {
 
   async function refreshMessages(sessionId: string): Promise<boolean> {
     try {
-      const next = await window.maka.sessions.readMessages(sessionId);
+      const next = await readMessagesWithSettleRetry(sessionId);
       if (activeIdRef.current === sessionId) {
         markSessionReadLocally(sessionId, next);
         setMessages(next);
