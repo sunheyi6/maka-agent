@@ -60,9 +60,21 @@ describe('active session message lifecycle contract', () => {
     );
     assert.match(
       refreshMessages,
-      /try \{[\s\S]*readMessages\(sessionId\)[\s\S]*activeIdRef\.current === sessionId[\s\S]*setMessages\(next\)[\s\S]*setMessageLoadErrorBySession[\s\S]*\} catch \(error\) \{[\s\S]*const message = messageRefreshErrorMessage\(error\);[\s\S]*setMessageLoadErrorBySession\(\(current\) => \(\{ \.\.\.current, \[sessionId\]: message \}\)\);[\s\S]*toastApi\.error\('刷新对话失败', message\)/,
+      /try \{[\s\S]*readMessagesWithSettleRetry\(sessionId\)[\s\S]*activeIdRef\.current === sessionId[\s\S]*setMessages\(next\)[\s\S]*setMessageLoadErrorBySession[\s\S]*\} catch \(error\) \{[\s\S]*const message = messageRefreshErrorMessage\(error\);[\s\S]*setMessageLoadErrorBySession\(\(current\) => \(\{ \.\.\.current, \[sessionId\]: message \}\)\);[\s\S]*toastApi\.error\('刷新对话失败', message\)/,
       'shared refreshMessages path must surface stage-specific read failures through the same per-session load error state',
     );
+    assert.match(
+      src,
+      /const REFRESH_MESSAGES_RETRY_DELAYS_MS = \[120, 360\] as const;/,
+      'automatic message refresh should tolerate short read-model settle races before surfacing an error',
+    );
+    assert.match(
+      src,
+      /async function readMessagesWithSettleRetry\(sessionId: string\): Promise<StoredMessage\[]> \{[\s\S]*window\.maka\.sessions\.readMessages\(sessionId\)[\s\S]*REFRESH_MESSAGES_RETRY_DELAYS_MS/,
+      'refreshMessages should read through the settle-retry helper instead of a single IPC attempt',
+    );
+    assert.match(refreshMessages, /readMessagesWithSettleRetry\(sessionId\)/);
+    assert.doesNotMatch(refreshMessages, /await window\.maka\.sessions\.readMessages\(sessionId\)/);
     assert.doesNotMatch(refreshMessages, /const message = cleanErrorMessage\(error\)/);
     assert.match(
       src,

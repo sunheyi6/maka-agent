@@ -74,6 +74,53 @@ describe('assistant streaming handoff', () => {
     assert.equal(next['session-1']?.messageId, 'assistant-1');
   });
 
+  it('renderer treats draining assistant text as settled for live-only chrome', async () => {
+    const { readRendererShellSource } = await import('./renderer-shell-source-helpers.js');
+    const shell = await readRendererShellSource('app-shell.tsx');
+
+    assert.match(
+      shell,
+      /const activeStreamingLive = activeStreaming\.length > 0 && activeStreamingSlot\?\.phase === 'streaming';/,
+    );
+    assert.match(
+      shell,
+      /slot\.text && slot\.phase === 'streaming'/,
+      'sidebar streaming pulse should ignore final text that is only draining into history',
+    );
+    assert.match(shell, /streaming=\{activeStreamingLive\}/);
+    assert.doesNotMatch(shell, /streaming=\{activeStreaming\.length > 0/);
+  });
+
+  it('complete refreshes committed messages even while the streaming bubble drains', async () => {
+    const { readRendererShellSource } = await import('./renderer-shell-source-helpers.js');
+    const events = await readRendererShellSource('app-shell-session-events.ts');
+    const completeCase = events.match(/case 'complete':[\s\S]*?break;/)?.[0] ?? '';
+
+    assert.match(completeCase, /markAssistantStreamSlotDraining\(current, sessionId\)/);
+    assert.doesNotMatch(completeCase, /if \(!deferMessageRefresh\) \{[\s\S]*refreshMessages\(sessionId\)/);
+    assert.match(
+      completeCase,
+      /void refreshSessions\(\);\s*void refreshMessages\(sessionId\);/,
+      'complete must refresh committed history even when final text is draining through the smoother',
+    );
+  });
+
+  it('committed assistant history clears a matching draining slot on the active session', async () => {
+    const { readRendererShellSource } = await import('./renderer-shell-source-helpers.js');
+    const shell = await readRendererShellSource('app-shell.tsx');
+
+    assert.match(
+      shell,
+      /messages\.some\(\(message\) => message\.type === 'assistant' && message\.id === activeStreamingMessageId\)/,
+      'active shell should detect when the committed assistant message has arrived',
+    );
+    assert.match(
+      shell,
+      /settleAssistantStreaming\(activeId, activeStreamingMessageId\)/,
+      'matching committed history should clear the draining streaming slot without requiring a session switch',
+    );
+  });
+
   it('settled slot reducer clears after refresh failure because the clear no longer depends on refresh success', () => {
     const settledSlot = { text: 'final answer', truncated: false, phase: 'draining' as const, messageId: 'assistant-1' };
     const slots: AssistantStreamSlots = {

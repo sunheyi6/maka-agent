@@ -157,7 +157,8 @@ describe('permission mode transition guard copy', () => {
     assert.ok(composerReasonBlock, 'main.tsx must pass permissionModeDisabledReason to the <Composer/>');
     assert.match(composerReasonBlock, /pendingPermissionModeBySession\[activeId\] === true/);
     assert.match(composerReasonBlock, /权限模式正在切换，完成后再继续操作。/);
-    assert.match(composerReasonBlock, /activeStreaming\.length > 0/);
+    assert.match(composerReasonBlock, /activeStreamingLive/);
+    assert.doesNotMatch(composerReasonBlock, /activeStreaming\.length > 0/);
     assert.match(composerReasonBlock, /当前对话正在流式输出，等结束后再切换权限模式。/);
     assert.match(composerReasonBlock, /activeSessionForView\?\.status === 'running'/);
     assert.match(composerReasonBlock, /当前对话正在运行，等结束后再切换权限模式。/);

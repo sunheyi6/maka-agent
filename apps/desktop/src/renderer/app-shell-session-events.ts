@@ -443,13 +443,11 @@ export function createAppShellSessionEventHandlers(options: {
         void refreshMessages(sessionId);
         break;
       case 'complete':
-        let deferMessageRefresh = false;
         if (event.stopReason !== 'permission_handoff') {
           const slot = streamingBySessionRef.current[sessionId];
           if (slot?.text) {
             setStreamingBySession((current) => markAssistantStreamSlotDraining(current, sessionId));
             clearThinking(sessionId);
-            deferMessageRefresh = true;
           } else {
             clearStreaming(sessionId);
           }
@@ -462,9 +460,7 @@ export function createAppShellSessionEventHandlers(options: {
           setPermissionBySession((current) => clearPermissions(current, sessionId));
         }
         void refreshSessions();
-        if (!deferMessageRefresh) {
-          void refreshMessages(sessionId);
-        }
+        void refreshMessages(sessionId);
         break;
       default:
         break;
