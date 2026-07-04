@@ -90,7 +90,7 @@ import type {
 import { testProxyConnection } from '@maka/runtime/network/proxy-test';
 import { fetchWeChatQrcode, pollWeChatQrcodeStatus } from './wechat-scan-login.js';
 import type { LlmConnection } from '@maka/core/llm-connections';
-import { createAgentRunStore, createArtifactStore, createConnectionStore, createPlanReminderStore, createRuntimeEventStore, createSessionStore, createSettingsStore, createTelemetryRepo } from '@maka/storage';
+import { createAgentRunStore, createArtifactStore, createConnectionStore, createFolderStore, createPlanReminderStore, createRuntimeEventStore, createSessionStore, createSettingsStore, createTelemetryRepo } from '@maka/storage';
 import {
   ensureSessionCanSendOrRebind,
   errorCode,
@@ -104,6 +104,7 @@ import { handleQuickChatStart as runQuickChatStart, type QuickChatResult } from 
 import { probeOfficeCli } from './officecli-probe.js';
 import { resolveOpenPath, type OpenPathResult } from './open-path-guard.js';
 import { resolveProjectGitInfo, resolveProjectRoot } from './project-context.js';
+import { listLocalBranches, checkoutBranch } from './git-branch.js';
 import { createDailyReviewArchiveStore } from './daily-review-archive-store.js';
 import { botTestErrorMessage, buildSettingsUpdateResult, maskAppSettings, preserveSensitivePlaceholders, toSettingsTestResult } from './settings-ipc-helpers.js';
 import {
@@ -283,6 +284,7 @@ const antigravitySubscription = new AntigravitySubscriptionService({
 });
 
 const planReminderStore = createPlanReminderStore(workspaceRoot);
+const folderStore = createFolderStore(workspaceRoot);
 
 async function getWorkspacePrivacyContext(): Promise<WorkspacePrivacyContext> {
   const settings = await settingsStore.get();
@@ -821,6 +823,27 @@ function registerIpc(): void {
       };
     },
   );
+  ipcMain.handle(
+    'app:resolveProjectGitInfo',
+    async (_event, projectPath: unknown): Promise<{ projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }> => {
+      const resolved = typeof projectPath === 'string' ? await resolveProjectRoot([projectPath]) : await currentProjectRoot();
+      return { projectPath: resolved, projectGit: await resolveProjectGitInfo(resolved) };
+    },
+  );
+  ipcMain.handle('app:listGitBranches', async () => {
+    const projectPath = await currentProjectRoot();
+    return listLocalBranches(projectPath);
+  });
+  ipcMain.handle(
+    'app:checkoutGitBranch',
+    async (_event, branch: unknown): Promise<{ ok: boolean; branch?: string; reason?: string; message?: string }> => {
+      if (typeof branch !== 'string' || !branch) {
+        return { ok: false, reason: 'failed', message: '无效的分支名' };
+      }
+      const projectPath = await currentProjectRoot();
+      return checkoutBranch(projectPath, branch);
+    },
+  );
   registerMemoryIpc({ localMemory });
   ipcMain.handle('workspaceInstructions:getState', () => getWorkspaceInstructionsState(process.cwd()));
   ipcMain.handle(
@@ -1140,6 +1163,56 @@ function registerIpc(): void {
   ipcMain.handle('sessions:rename', async (_event, sessionId: string, name: string) => {
     await runtime.renameSession(sessionId, name);
     emitSessionsChanged('renamed', sessionId);
+  });
+  // PR-FOLDERS: move a session into / out of a folder. The folder store
+  // owns folder metadata; the session store owns the folderId field on
+  // the header. We emit a `folder-change` reason so the renderer can
+  // re-derive folder groups without waiting for a full list refresh.
+  ipcMain.handle('sessions:setFolder', async (_event, sessionId: string, folderId: string | null) => {
+    await runtime.setFolder(sessionId, folderId);
+    emitSessionsChanged('folder-change', sessionId);
+  });
+  // Folder metadata IPC. The folder store is the single source of truth
+  // for folder name / order / collapsed state; the renderer subscribes
+  // to `sessions:changed` (reason `folder-change`) to know when to
+  // re-fetch folders + re-derive groups.
+  ipcMain.handle('folders:list', () => folderStore.list());
+  ipcMain.handle('folders:create', async (_event, name: string) => {
+    const folder = await folderStore.create(name);
+    safeSendToRenderer('sessions:changed', { type: 'sessions_changed', reason: 'folder-change', ts: Date.now() });
+    return folder;
+  });
+  ipcMain.handle('folders:rename', async (_event, id: string, name: string) => {
+    const folder = await folderStore.rename(id, name);
+    safeSendToRenderer('sessions:changed', { type: 'sessions_changed', reason: 'folder-change', ts: Date.now() });
+    return folder;
+  });
+  ipcMain.handle('folders:reorder', async (_event, id: string, toIndex: number) => {
+    const folders = await folderStore.reorder(id, toIndex);
+    safeSendToRenderer('sessions:changed', { type: 'sessions_changed', reason: 'folder-change', ts: Date.now() });
+    return folders;
+  });
+  ipcMain.handle('folders:setCollapsed', async (_event, id: string, collapsed: boolean) => {
+    const folder = await folderStore.setCollapsed(id, collapsed);
+    // Collapsed state is a pure UI-persistence toggle — no need to
+    // broadcast a sessions:changed event (the renderer updates its local
+    // expanded state immediately for responsiveness and the persisted
+    // value is only consulted on next cold load).
+    return folder;
+  });
+  ipcMain.handle('folders:remove', async (_event, id: string) => {
+    // Clear folderId on every session that referenced this folder so
+    // they don't become orphans rendering as 未分组 with a dangling
+    // reference. The folder store doesn't know about sessions, so we
+    // drive the cleanup from here using the session store directly.
+    const sessions = await runtime.listSessions();
+    await Promise.all(
+      sessions
+        .filter((session) => session.folderId === id)
+        .map((session) => runtime.setFolder(session.id, null)),
+    );
+    await folderStore.remove(id);
+    safeSendToRenderer('sessions:changed', { type: 'sessions_changed', reason: 'folder-change', ts: Date.now() });
   });
   ipcMain.handle('sessions:setPermissionMode', (_event, sessionId: string, mode: unknown) => {
     if (!isPermissionMode(mode)) {

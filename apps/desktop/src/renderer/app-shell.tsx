@@ -106,6 +106,7 @@ import {
   useAppShellRefSync,
   useSessionEventHealthPolling,
 } from './app-shell-effects';
+import { loadComposerDefaults, saveComposerDefaults } from './composer-defaults';
 
 type ComposerImportOwner = {
   sessionId: string | undefined;
@@ -223,7 +224,26 @@ export function AppShell() {
   const [userLabel, setUserLabel] = useState<string>('');
   const [skills, setSkills] = useState<SkillEntry[]>([]);
   const [planReminders, setPlanReminders] = useState<PlanReminder[]>([]);
-  const [appInfo, setAppInfo] = useState<RendererAppInfo | null>(null);
+  // Persisted composer defaults seed the empty-state model, permission mode,
+  // project path, and recent workspace history so the home view is populated
+  // before the async `app:info` round-trip completes on mount.
+  const persistedComposerDefaults = loadComposerDefaults();
+  const [pendingNewChatModel, setPendingNewChatModel] = useState<{ llmConnectionSlug: string; model: string } | null>(
+    persistedComposerDefaults?.model ?? null,
+  );
+  const [pendingNewChatPermissionMode, setPendingNewChatPermissionMode] = useState<PermissionMode | null>(
+    persistedComposerDefaults?.permissionMode ?? null,
+  );
+  const [appInfo, setAppInfo] = useState<RendererAppInfo | null>(
+    persistedComposerDefaults?.projectPath
+      ? { projectPath: persistedComposerDefaults.projectPath, projectGit: { isGitRepo: false } }
+      : null,
+  );
+  const [branchList, setBranchList] = useState<{ branches: string[]; current?: string } | null>(null);
+  const [branchPending, setBranchPending] = useState(false);
+  const [recentProjectPaths, setRecentProjectPaths] = useState<string[]>(
+    persistedComposerDefaults?.recentProjectPaths ?? [],
+  );
   const [projectPickerPending, setProjectPickerPending] = useState(false);
   const [helpOpen, closeHelp, openHelp] = useKeyboardHelp();
   const [paletteOpen, openPalette, closePalette] = useCommandPalette();
@@ -317,8 +337,6 @@ export function AppShell() {
   // Null = follow the default connection; a pick overrides it (sticky until
   // changed) and is forwarded to sessions.create in `send()`. Renderer-only —
   // it never mutates the persisted Settings · 模型 default.
-  const [pendingNewChatModel, setPendingNewChatModel] = useState<{ llmConnectionSlug: string; model: string } | null>(null);
-  const [pendingNewChatPermissionMode, setPendingNewChatPermissionMode] = useState<PermissionMode | null>(null);
   // A pick only stays in effect while it is still an offered choice. If the user
   // later disables/removes that connection or model, fall back to the default so
   // the home chip never shows — nor sends — a model that no longer exists.
@@ -768,15 +786,22 @@ export function AppShell() {
   const {
     refreshAppInfo,
     selectProjectDirectory,
+    selectRecentProjectDirectory,
     openProjectFolder,
     openWorkspaceFolder,
     openSkillsFolder,
+    listGitBranches,
+    checkoutGitBranch,
   } = createAppShellProjectActions({
     projectPickerPendingRef,
     projectPickerRequestRef,
     rendererMountedRef,
     setAppInfo,
     setProjectPickerPending,
+    setBranchPending,
+    setBranchList,
+    setRecentProjectPaths,
+    recentProjectPaths,
     toastApi,
   });
 
@@ -830,6 +855,7 @@ export function AppShell() {
     pendingNewChatPermissionMode,
     setPendingNewChatPermissionMode,
     validPendingNewChatModel,
+    projectPath: appInfo?.projectPath ?? null,
   });
 
   const { handleTurnFooterAction } = createAppShellTurnActions({
@@ -1054,6 +1080,9 @@ export function AppShell() {
     setNavSelection({ section: 'sessions', filter: 'chats' });
     setSearchScrollTarget(null);
     setMessages([]);
+    // New-task affordances reset to the empty-state composer; move focus
+    // there so the user can start typing immediately.
+    window.requestAnimationFrame(() => composerRef.current?.focus());
   }
 
   function openPlanReminderForm() {
@@ -1448,16 +1477,38 @@ export function AppShell() {
                 modelChangePending={activeId ? pendingSessionModelBySession[activeId] === true : false}
                 onModelChange={(input) => setSessionModel(input)}
                 newChatModel={newChatModel}
-                onPickNewChatModel={(input) => setPendingNewChatModel(input)}
+                onPickNewChatModel={(input) => {
+                  setPendingNewChatModel(input);
+                  saveComposerDefaults({ model: input });
+                }}
                 onOpenModelSettings={() => openSettingsSection('models')}
                 workspacePicker={{
                   label: appInfo ? basenameFromPath(appInfo.projectPath) : undefined,
                   branch: appInfo?.projectGit.branch,
                   pending: projectPickerPending,
+                  recentWorkspaces: recentProjectPaths,
                   onOpen: () => {
                     void selectProjectDirectory();
                   },
+                  onSelect: (path: string) => {
+                    void selectRecentProjectDirectory(path);
+                  },
                 }}
+                branchPicker={
+                  appInfo?.projectGit.isGitRepo
+                    ? {
+                        branch: appInfo.projectGit.branch ?? null,
+                        pending: branchPending,
+                        branches: branchList?.branches ?? [],
+                        onOpen: () => {
+                          void listGitBranches();
+                        },
+                        onSelect: (branch: string) => {
+                          void checkoutGitBranch(branch);
+                        },
+                      }
+                    : undefined
+                }
                 permissionMode={activeSessionForView?.permissionMode ?? pendingNewChatPermissionMode ?? undefined}
                 permissionModePending={activeId ? pendingPermissionModeBySession[activeId] === true : false}
                 permissionModeDisabledReason={

@@ -56,6 +56,7 @@ import type {
   WebSearchResponse,
   BrowserState,
   BrowserViewRect,
+  SessionFolder,
 } from '@maka/core';
 import type {
   PricingConfig,
@@ -200,6 +201,9 @@ contextBridge.exposeInMainWorld('maka', {
     rename(sessionId: string, name: string): Promise<void> {
       return ipcRenderer.invoke('sessions:rename', sessionId, name);
     },
+    setFolder(sessionId: string, folderId: string | null): Promise<void> {
+      return ipcRenderer.invoke('sessions:setFolder', sessionId, folderId);
+    },
     setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionSummary> {
       return ipcRenderer.invoke('sessions:setPermissionMode', sessionId, mode);
     },
@@ -208,6 +212,26 @@ contextBridge.exposeInMainWorld('maka', {
     },
     remove(sessionId: string): Promise<void> {
       return ipcRenderer.invoke('sessions:remove', sessionId);
+    },
+  },
+  folders: {
+    list(): Promise<SessionFolder[]> {
+      return ipcRenderer.invoke('folders:list');
+    },
+    create(name: string): Promise<SessionFolder> {
+      return ipcRenderer.invoke('folders:create', name);
+    },
+    rename(id: string, name: string): Promise<SessionFolder> {
+      return ipcRenderer.invoke('folders:rename', id, name);
+    },
+    reorder(id: string, toIndex: number): Promise<SessionFolder[]> {
+      return ipcRenderer.invoke('folders:reorder', id, toIndex);
+    },
+    setCollapsed(id: string, collapsed: boolean): Promise<SessionFolder> {
+      return ipcRenderer.invoke('folders:setCollapsed', id, collapsed);
+    },
+    remove(id: string): Promise<void> {
+      return ipcRenderer.invoke('folders:remove', id);
     },
   },
   connections: {
@@ -752,6 +776,29 @@ contextBridge.exposeInMainWorld('maka', {
       | { ok: false; reason: 'cancelled' | 'missing-selection' }
     > {
       return ipcRenderer.invoke('app:selectProjectDirectory');
+    },
+    resolveProjectGitInfo(projectPath: string): Promise<{
+      projectPath: string;
+      projectGit: { isGitRepo: boolean; branch?: string };
+    }> {
+      return ipcRenderer.invoke('app:resolveProjectGitInfo', projectPath);
+    },
+    listGitBranches(): Promise<{
+      ok: boolean;
+      branches?: string[];
+      current?: string;
+      reason?: string;
+      message?: string;
+    }> {
+      return ipcRenderer.invoke('app:listGitBranches');
+    },
+    checkoutGitBranch(branch: string): Promise<{
+      ok: boolean;
+      branch?: string;
+      reason?: string;
+      message?: string;
+    }> {
+      return ipcRenderer.invoke('app:checkoutGitBranch', branch);
     },
     openArtifactPath(
       artifactId: string,

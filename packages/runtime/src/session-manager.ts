@@ -987,6 +987,7 @@ export function headerToSummary(h: SessionHeader): SessionSummary {
   const summary: SessionSummary = {
     id: h.id,
     name: h.name === 'New Session' ? 'New Chat' : h.name,
+    cwd: h.cwd,
     isFlagged: h.isFlagged,
     isArchived: h.isArchived,
     labels: h.labels,

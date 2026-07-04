@@ -70,6 +70,10 @@ export function createAppShellChatActions(deps: {
   isNewChatSendSurfaceActive: (owner: ComposerImportOwner) => boolean;
   markSessionReadLocally: (sessionId: string, readMessages: readonly StoredMessage[]) => void;
   messageRetryPendingRef: RefBox<Set<string>>;
+  pendingNewChatPermissionMode: PendingNewChatPermissionMode;
+  setPendingNewChatPermissionMode: (mode: PendingNewChatPermissionMode) => void;
+  /** Persisted project path to forward as the new session's `cwd`. */
+  projectPath: string | null;
   refreshSessions: () => Promise<SessionSummary[]>;
   setActiveId: (sessionId: string | undefined) => void;
   setMessageLoadErrorBySession: MessageLoadErrorUpdater;
@@ -79,8 +83,6 @@ export function createAppShellChatActions(deps: {
   showModelSetupToast: (description: string, reason?: string) => void;
   toastApi: ToastApi;
   upsertSessionSummary: (session: SessionSummary) => void;
-  pendingNewChatPermissionMode: PendingNewChatPermissionMode;
-  setPendingNewChatPermissionMode: (mode: PendingNewChatPermissionMode) => void;
   validPendingNewChatModel: PendingNewChatModel;
 }): AppShellChatActions {
   const {
@@ -91,17 +93,18 @@ export function createAppShellChatActions(deps: {
     isNewChatSendSurfaceActive,
     markSessionReadLocally,
     messageRetryPendingRef,
+    pendingNewChatPermissionMode,
+    projectPath,
     refreshSessions,
     setActiveId,
     setMessageLoadErrorBySession,
     setMessageRetryPendingBySession,
     setMessages,
     setNavSelection,
+    setPendingNewChatPermissionMode,
     showModelSetupToast,
     toastApi,
     upsertSessionSummary,
-    pendingNewChatPermissionMode,
-    setPendingNewChatPermissionMode,
     validPendingNewChatModel,
   } = deps;
 
@@ -149,6 +152,9 @@ export function createAppShellChatActions(deps: {
       const turnId = crypto.randomUUID();
       if (!initialSessionId) {
         const session = await window.maka.sessions.create({
+          // Forward the composer's selected folder so new sessions actually run
+          // there; falls through to the main-process default when unset.
+          ...(projectPath ? { cwd: projectPath } : {}),
           permissionMode: pendingNewChatPermissionMode ?? 'ask',
           name: text.slice(0, 42) || '新建对话',
           ...(validPendingNewChatModel

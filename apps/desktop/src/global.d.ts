@@ -54,6 +54,7 @@ import type {
   WebSearchResponse,
   BrowserState,
   BrowserViewRect,
+  SessionFolder,
 } from '@maka/core';
 import type {
   PricingConfig,
@@ -149,9 +150,18 @@ declare global {
         unarchive(sessionId: string): Promise<void>;
         setFlagged(sessionId: string, isFlagged: boolean): Promise<void>;
         rename(sessionId: string, name: string): Promise<void>;
+        setFolder(sessionId: string, folderId: string | null): Promise<void>;
         setPermissionMode(sessionId: string, mode: PermissionMode): Promise<SessionSummary>;
         setModel(sessionId: string, input: { llmConnectionSlug: string; model: string }): Promise<SessionSummary>;
         remove(sessionId: string): Promise<void>;
+      };
+      folders: {
+        list(): Promise<SessionFolder[]>;
+        create(name: string): Promise<SessionFolder>;
+        rename(id: string, name: string): Promise<SessionFolder>;
+        reorder(id: string, toIndex: number): Promise<SessionFolder[]>;
+        setCollapsed(id: string, collapsed: boolean): Promise<SessionFolder>;
+        remove(id: string): Promise<void>;
       };
       connections: {
         list(): Promise<LlmConnection[]>;
@@ -428,6 +438,23 @@ declare global {
           | { ok: true; projectPath: string; projectGit: { isGitRepo: boolean; branch?: string } }
           | { ok: false; reason: 'cancelled' | 'missing-selection' }
         >;
+        resolveProjectGitInfo(projectPath: string): Promise<{
+          projectPath: string;
+          projectGit: { isGitRepo: boolean; branch?: string };
+        }>;
+        listGitBranches(): Promise<{
+          ok: boolean;
+          branches?: string[];
+          current?: string;
+          reason?: string;
+          message?: string;
+        }>;
+        checkoutGitBranch(branch: string): Promise<{
+          ok: boolean;
+          branch?: string;
+          reason?: string;
+          message?: string;
+        }>;
         openArtifactPath(
           artifactId: string,
         ): Promise<

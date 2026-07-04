@@ -112,6 +112,8 @@ export type BackendKind = 'ai-sdk' | 'fake' | 'pi-agent';
 export interface SessionSummary {
   id: string;
   name: string;
+  /** Absolute working directory this session runs in. */
+  cwd?: string;
   isFlagged: boolean;
   isArchived: boolean;
   labels: string[];
