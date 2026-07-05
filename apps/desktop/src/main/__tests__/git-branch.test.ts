@@ -139,14 +139,17 @@ describe('listLocalBranches', () => {
 describe('checkoutBranch', () => {
   it('switches to a valid branch and returns the new branch name', async () => {
     await withGitRepo(async (root) => {
-      let gitArgs: readonly string[] = [];
+      const gitCalls: string[][] = [];
       const execFileImpl = fakeExecFile((args) => {
-        gitArgs = args;
+        gitCalls.push([...args]);
         return { error: null, stdout: '', stderr: '' };
       });
       const result = await checkoutBranch(root, 'develop', { execFileImpl });
       assert.ok(result.ok);
-      assert.deepEqual(gitArgs, ['checkout', 'develop']);
+      assert.deepEqual(gitCalls, [
+        ['status', '--porcelain'],
+        ['checkout', 'develop'],
+      ]);
     });
   });
 
@@ -165,9 +168,9 @@ describe('checkoutBranch', () => {
 
   it('refuses checkout when worktree is dirty', async () => {
     await withGitRepo(async (root) => {
-      let gitArgs: readonly string[] = [];
+      const gitCalls: string[][] = [];
       const execFileImpl = fakeExecFile((args) => {
-        gitArgs = args;
+        gitCalls.push([...args]);
         if (args[0] === 'status' && args[1] === '--porcelain') {
           return { error: null, stdout: 'M  index.ts\n', stderr: '' };
         }
@@ -179,7 +182,50 @@ describe('checkoutBranch', () => {
       assert.equal(result.message, '工作区有未提交的更改，请先提交或暂存。');
       // The only git command that was run was `git status --porcelain`;
       // `git checkout` must NOT be called on a dirty worktree.
-      assert.deepEqual(gitArgs, ['status', '--porcelain']);
+      assert.deepEqual(gitCalls, [['status', '--porcelain']]);
+    });
+  });
+
+  it('fails closed when dirty-check status command fails', async () => {
+    await withGitRepo(async (root) => {
+      const gitCalls: string[][] = [];
+      const execFileImpl = fakeExecFile((args) => {
+        gitCalls.push([...args]);
+        if (args[0] === 'status' && args[1] === '--porcelain') {
+          return {
+            error: errnoException('EACCES', 'status failed'),
+            stdout: '',
+            stderr: 'fatal: cannot inspect worktree',
+          };
+        }
+        return { error: null, stdout: '', stderr: '' };
+      });
+      const result = await checkoutBranch(root, 'develop', { execFileImpl });
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'failed');
+      assert.equal(result.message, 'fatal: cannot inspect worktree');
+      assert.deepEqual(gitCalls, [['status', '--porcelain']]);
+    });
+  });
+
+  it('fails closed when dirty-check status command times out', async () => {
+    await withGitRepo(async (root) => {
+      const gitCalls: string[][] = [];
+      const execFileImpl = fakeExecFile((args) => {
+        gitCalls.push([...args]);
+        if (args[0] === 'status' && args[1] === '--porcelain') {
+          return {
+            error: Object.assign(errnoException('ETIMEDOUT', 'timeout'), { killed: true }),
+            stdout: '',
+            stderr: '',
+          };
+        }
+        return { error: null, stdout: '', stderr: '' };
+      });
+      const result = await checkoutBranch(root, 'develop', { execFileImpl });
+      assert.equal(result.ok, false);
+      assert.equal(result.reason, 'timeout');
+      assert.deepEqual(gitCalls, [['status', '--porcelain']]);
     });
   });
 });

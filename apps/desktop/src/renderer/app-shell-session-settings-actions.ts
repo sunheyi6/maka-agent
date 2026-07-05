@@ -54,8 +54,6 @@ export function createAppShellSessionSettingsActions(deps: {
     const sessionId = activeIdRef.current;
     if (!sessionId) {
       setPendingNewChatPermissionMode(mode);
-      // Keep the global default in sync so the next "新任务" inherits it.
-      saveComposerDefaults({ permissionMode: mode });
       return;
     }
     if (pendingPermissionModeChangesRef.current.has(sessionId)) return;
@@ -77,8 +75,6 @@ export function createAppShellSessionSettingsActions(deps: {
         bypass: '跳过确认',
       };
       if (activeIdRef.current === sessionId) toastApi.success(`已切到 ${labels[mode]}`, permissionModeDescriptions[mode]);
-      // Sync the global default so a subsequent "新任务" inherits this pick.
-      saveComposerDefaults({ permissionMode: mode });
       await refreshSessions();
     } catch (error) {
       if (activeIdRef.current === sessionId) {

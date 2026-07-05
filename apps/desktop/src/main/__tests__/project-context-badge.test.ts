@@ -61,6 +61,10 @@ describe('project context workspace picker', () => {
 
     assert.match(main, /resolveProjectRoot\(\[process\.cwd\(\), app\.getAppPath\(\)\]\)/);
     assert.match(main, /projectGit:\s*await resolveProjectGitInfo\(projectPath\)/);
+    assert.match(main, /function registerIpc\(\): void/);
+    assert.match(main, /const persistedProjectRootPromise = loadPersistedProjectRoot\(\)/);
+    assert.doesNotMatch(main, /async function registerIpc\(\): Promise<void>/);
+    assert.doesNotMatch(main, /void registerIpc\(\);/);
     assert.match(preload, /projectPath:\s*string;/);
     assert.match(preload, /projectGit:\s*\{ isGitRepo: boolean; branch\?: string \};/);
     assert.match(globalTypes, /projectPath:\s*string;/);
@@ -82,6 +86,16 @@ describe('project context workspace picker', () => {
     assert.match(main, /const projectPath = await resolveProjectRoot\(\[selectedPath\]\)/);
     assert.match(main, /selectedProjectRoot = projectPath;/);
     assert.match(main, /projectGit:\s*await resolveProjectGitInfo\(projectPath\)/);
+    assert.match(
+      main,
+      /async function loadPersistedProjectRoot\(\): Promise<string \| null> \{[\s\S]*await stat\(parsed\.projectPath\)[\s\S]*return await resolveProjectRoot\(\[parsed\.projectPath\]\)/,
+      'restored last-project-path must be validated before it becomes currentProjectRoot',
+    );
+    assert.match(
+      main,
+      /if \(selectedProjectRoot\) return selectedProjectRoot;[\s\S]*const persistedProjectRoot = await persistedProjectRootPromise;[\s\S]*if \(persistedProjectRoot\) \{[\s\S]*selectedProjectRoot = persistedProjectRoot;[\s\S]*return persistedProjectRoot;/,
+      'currentProjectRoot must await the validated persisted project before falling back',
+    );
     assert.match(preload, /selectProjectDirectory\(\): Promise</);
     assert.match(preload, /ipcRenderer\.invoke\('app:selectProjectDirectory'\)/);
     assert.match(globalTypes, /selectProjectDirectory\(\): Promise</);
@@ -116,6 +130,15 @@ describe('project context workspace picker', () => {
     assert.match(workspacePickerBlock, /pending:\s*projectPickerPending/);
     assert.match(workspacePickerBlock, /void selectProjectDirectory\(\)/);
     assert.doesNotMatch(workspacePickerBlock, /openProjectFolder\(\)|openWorkspaceFolder\(\)|openPath\(/);
+  });
+
+  it('resolves workspace instruction files under the selected project root', async () => {
+    const main = await readRepo('apps/desktop/src/main/main.ts');
+
+    assert.match(main, /ipcMain\.handle\('workspaceInstructions:getState', async \(\) => getWorkspaceInstructionsState\(await currentProjectRoot\(\)\)\)/);
+    assert.match(main, /resolveWorkspaceInstructionFileForOpen\(await currentProjectRoot\(\), typeof file === 'string' \? file : ''\)/);
+    assert.match(main, /createWorkspaceInstructionFile\(await currentProjectRoot\(\), typeof file === 'string' \? file : ''\)/);
+    assert.doesNotMatch(main, /workspaceInstructions:getState', \(\) => getWorkspaceInstructionsState\(process\.cwd\(\)\)/);
   });
 
   it('opens project directory by allowlisted key, not renderer-supplied path', async () => {

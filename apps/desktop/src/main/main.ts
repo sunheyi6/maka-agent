@@ -790,24 +790,25 @@ function proxyTestFailureMessage(result: TestProxyResult): string {
   return '代理不可达，请检查代理服务器地址、端口或认证信息。';
 }
 
-async function registerIpc(): Promise<void> {
+function registerIpc(): void {
   const LAST_PROJECT_PATH_FILE = join(workspaceRoot, 'last-project-path.json');
 
   let selectedProjectRoot: string | null = null;
 
-  // Initialize from persisted state BEFORE any IPC handler runs, so
-  // app:info / app:listGitBranches / app:checkoutGitBranch always see
-  // the last-selected project path on reload (no race between the async
-  // file read and the first renderer request).
-  try {
-    const raw = await readFile(LAST_PROJECT_PATH_FILE, 'utf8');
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    if (typeof parsed.projectPath === 'string' && parsed.projectPath) {
-      selectedProjectRoot = parsed.projectPath;
+  async function loadPersistedProjectRoot(): Promise<string | null> {
+    try {
+      const raw = await readFile(LAST_PROJECT_PATH_FILE, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof parsed.projectPath === 'string' && parsed.projectPath) {
+        await stat(parsed.projectPath);
+        return await resolveProjectRoot([parsed.projectPath]);
+      }
+    } catch {
+      // File missing, invalid, or points at a deleted directory.
     }
-  } catch {
-    // File missing or invalid — first run.
+    return null;
   }
+  const persistedProjectRootPromise = loadPersistedProjectRoot();
 
   async function saveLastProjectPath(projectPath: string): Promise<void> {
     try {
@@ -819,6 +820,11 @@ async function registerIpc(): Promise<void> {
 
   async function currentProjectRoot(): Promise<string> {
     if (selectedProjectRoot) return selectedProjectRoot;
+    const persistedProjectRoot = await persistedProjectRootPromise;
+    if (persistedProjectRoot) {
+      selectedProjectRoot = persistedProjectRoot;
+      return persistedProjectRoot;
+    }
     return resolveProjectRoot([process.cwd(), app.getAppPath()]);
   }
 
@@ -932,11 +938,11 @@ async function registerIpc(): Promise<void> {
     },
   );
   registerMemoryIpc({ localMemory });
-  ipcMain.handle('workspaceInstructions:getState', () => getWorkspaceInstructionsState(process.cwd()));
+  ipcMain.handle('workspaceInstructions:getState', async () => getWorkspaceInstructionsState(await currentProjectRoot()));
   ipcMain.handle(
     'workspaceInstructions:openFile',
     async (_event, file: unknown): Promise<{ ok: true } | { ok: false; message: string }> => {
-      const resolved = await resolveWorkspaceInstructionFileForOpen(process.cwd(), typeof file === 'string' ? file : '');
+      const resolved = await resolveWorkspaceInstructionFileForOpen(await currentProjectRoot(), typeof file === 'string' ? file : '');
       if (!resolved.ok) return { ok: false, message: workspaceInstructionOpenFailureCopy(resolved.reason) };
       const error = await shell.openPath(resolved.path);
       return error ? { ok: false, message: workspaceInstructionOpenFailureCopy('open-failed') } : { ok: true };
@@ -945,7 +951,7 @@ async function registerIpc(): Promise<void> {
   ipcMain.handle(
     'workspaceInstructions:createFile',
     async (_event, file: unknown): Promise<{ ok: true } | { ok: false; message: string }> => {
-      const created = await createWorkspaceInstructionFile(process.cwd(), typeof file === 'string' ? file : '');
+      const created = await createWorkspaceInstructionFile(await currentProjectRoot(), typeof file === 'string' ? file : '');
       if (!created.ok) return { ok: false, message: workspaceInstructionCreateFailureCopy(created.reason) };
       return { ok: true };
     },
@@ -1762,7 +1768,7 @@ async function ensureBootstrapConnection(): Promise<void> {
   }
 }
 
-void registerIpc();
+registerIpc();
 
 app.whenReady().then(async () => {
   // PR-GRAY-CARD-LIFT-0 (WAWQAQ msg `0eb99429` 2026-06-20): set the

@@ -114,12 +114,16 @@ export async function checkoutBranch(
 
   // Guard against dirty worktree: refuse checkout when there are
   // uncommitted changes the user could lose or mix up.
-  const { stdout: statusOutput } = await runGit({
+  const { stdout: statusOutput, stderr: statusErrorOutput, error: statusError } = await runGit({
     cwd: projectRoot,
     args: ['status', '--porcelain'],
     timeoutMs: LIST_TIMEOUT_MS,
     execFileImpl: input.execFileImpl,
   });
+  if (statusError) {
+    const reason = classifyError(statusError);
+    return { ok: false, reason, message: statusErrorOutput.trim() || statusError.message };
+  }
   if (statusOutput.trim()) {
     return { ok: false, reason: 'dirty', message: '工作区有未提交的更改，请先提交或暂存。' };
   }

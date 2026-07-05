@@ -120,8 +120,13 @@ describe('home composer new-chat model picker', () => {
 
     assert.match(
       renderer,
-      /const \[pendingNewChatPermissionMode, setPendingNewChatPermissionMode\] = useState<PermissionMode \| null>\([\s\S]*persistedComposerDefaults\?\.permissionMode \?\? null,[\s\S]*\)/,
-      'AppShell must seed the picked empty-state permission mode from persisted composer defaults',
+      /const \[pendingNewChatPermissionMode, setPendingNewChatPermissionMode\] = useState<PermissionMode \| null>\(null\)/,
+      'AppShell must keep the no-session permission pick renderer-only and start it from null',
+    );
+    assert.doesNotMatch(
+      renderer,
+      /saveComposerDefaults\(\{\s*permissionMode:/,
+      'permission mode must not be persisted into composer defaults',
     );
     assert.match(
       renderer,

@@ -124,7 +124,7 @@
 
 .maka-composer-branch-picker:hover {
   color: var(--foreground-secondary);
-  background: oklch(from var(--foreground) l c h / 0.06);
+  background: var(--state-hover-bg);
 }
 
 .maka-composer-branch-picker:focus-visible {
