@@ -58,8 +58,8 @@
      mouse; without a visible focus ring keyboard-only users couldn't
      tell it was selected. Use the same 2px accent outline +
      `:focus-visible` recipe as the settings rows. */
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
   color: var(--foreground);
 }
 
@@ -204,8 +204,8 @@
 }
 
 .settingsNavItem:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
   background: oklch(from var(--focus-ring) l c h / 0.04);
 }
 
@@ -215,7 +215,7 @@
 
 .settingsNavItem:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: var(--opacity-disabled);
 }
 
 .settingsNavGlyph {
@@ -625,8 +625,8 @@
    with the row's hairline divider. */
 .settingsFormRow:focus-visible,
 .settingsRow:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
   background: oklch(from var(--focus-ring) l c h / 0.04);
 }
 
@@ -636,7 +636,7 @@
 .settingsFormGrid select:focus-visible {
   outline: none;
   border-color: var(--focus-ring);
-  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.18);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.18);
 }
 
 /* PR-SETTINGS-A11Y-POLISH-0 — respect prefers-reduced-motion. Strip

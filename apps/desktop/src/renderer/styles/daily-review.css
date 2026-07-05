@@ -80,7 +80,7 @@
 }
 
 .maka-daily-review-quick-run[data-pending="true"] {
-  opacity: 0.7;
+  opacity: var(--opacity-muted);
 }
 
 .maka-daily-review-archives {
@@ -446,7 +446,7 @@
     padding: var(--space-1-5) var(--space-2-5);
     border-radius: var(--radius-surface);
     background: transparent;
-    transition: background 140ms var(--ease-out-strong);
+    transition: background var(--duration-base) var(--ease-out-strong);
   }
 .maka-daily-review-list-item:hover {
     background: var(--state-hover-bg);

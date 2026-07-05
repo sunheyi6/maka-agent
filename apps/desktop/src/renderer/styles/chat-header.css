@@ -87,8 +87,8 @@
 }
 
 .maka-chat-header-memory-pill:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .maka-chat-header-mode-pill {
@@ -131,12 +131,12 @@
   }
 
 .maka-chat-header-alert:hover {
-    transform: translateY(-1px);
+    transform: translateY(var(--lift-hover));
   }
 
 .maka-chat-header-alert:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
+    outline: var(--focus-ring-width) solid var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
   }
 
 .maka-chat-header-alert[data-tone="info"] {
@@ -258,13 +258,13 @@
   transition:
     transform var(--duration-emphasized) var(--ease-out-strong),
     opacity var(--duration-emphasized) var(--ease-out-strong),
-    background 120ms var(--ease-out-strong);
+    background var(--duration-quick) var(--ease-out-strong);
   }
 
 .maka-chat-jump-bottom:hover {
     color: var(--foreground);
     background: var(--state-hover-bg);
-    transform: translateX(-50%) translateY(-2px);
+    transform: translateX(-50%) translateY(var(--lift-hover));
   }
 
 .maka-chat-jump-bottom:active {
@@ -451,7 +451,7 @@
   pointer-events: auto;
   opacity: 1;
   transform: translateX(0);
-  transition: background 120ms var(--ease-out-strong);
+  transition: background var(--duration-quick) var(--ease-out-strong);
 }
 
 /* D6 waiting-state spectrum #1 (taste v1 §9 Live Status): toasts used
@@ -466,7 +466,7 @@
 }
 
 .maka-toast {
-  animation: maka-toast-enter 240ms var(--ease-out-strong);
+  animation: maka-toast-enter var(--duration-large) var(--ease-out-strong);
 }
 
 /* Exit = enter x 75% (roadmap §4.1), ease-in per the enter-out/exit-in
@@ -476,8 +476,8 @@
   100% { opacity: 0; transform: translateY(6px) scale(0.98); }
 }
 
-.maka-toast[data-exiting="true"] {
-  animation: maka-toast-exit 180ms var(--ease-in-out-strong) forwards;
+.maka-toast[data-ending-style] {
+  animation: maka-toast-exit var(--duration-emphasized) var(--ease-in-out-strong) forwards;
   pointer-events: none;
 }
 
@@ -596,12 +596,6 @@
 
 .maka-confirm-modal {
   width: min(420px, calc(100vw - 48px));
-}
-
-.maka-confirm-backdrop {
-  /* Slightly opaque so destructive confirms feel weightier than regular
-     toast notifications. */
-  background: oklch(from var(--background) l c h / 0.7);
 }
 
 .maka-help-modal {
@@ -727,9 +721,9 @@
      here"), not up. foreground-derived so dark mode adapts. */
   background: oklch(from var(--foreground) l c h / 0.03);
   transition:
-    border-color var(--duration-fast) var(--ease-out-strong),
-    box-shadow var(--duration-fast) var(--ease-out-strong),
-    background var(--duration-fast) var(--ease-out-strong);
+    border-color var(--duration-quick) var(--ease-out-strong),
+    box-shadow var(--duration-quick) var(--ease-out-strong),
+    background var(--duration-quick) var(--ease-out-strong);
 }
 
 .maka-palette-input-wrap:has(input:focus) {
@@ -848,9 +842,9 @@
   font-size: var(--font-size-caption);
   cursor: default;
   transition:
-    background-color 140ms var(--ease-out-strong),
-    color 140ms var(--ease-out-strong),
-    opacity 140ms var(--ease-out-strong);
+    background-color var(--duration-base) var(--ease-out-strong),
+    color var(--duration-base) var(--ease-out-strong),
+    opacity var(--duration-base) var(--ease-out-strong);
 }
 
 .maka-palette-item:hover:not([data-disabled="true"]) {
@@ -867,14 +861,14 @@
 }
 
 .maka-palette-item:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .maka-palette-item[data-disabled="true"] {
   color: var(--muted-foreground);
   cursor: default;
-  opacity: 0.72;
+  opacity: var(--opacity-disabled);
 }
 
 .maka-palette-item[data-pending="true"] {
@@ -889,8 +883,8 @@
   border-radius: var(--radius-control);
   color: var(--muted-foreground);
   transition:
-    background-color 140ms var(--ease-out-strong),
-    color 140ms var(--ease-out-strong);
+    background-color var(--duration-base) var(--ease-out-strong),
+    color var(--duration-base) var(--ease-out-strong);
 }
 
 .maka-palette-item[data-active="true"] .maka-palette-icon {

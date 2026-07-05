@@ -2,6 +2,7 @@ import { app, ipcMain, nativeImage, safeStorage, shell } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { startConfigFileWatcher, type ConfigFileWatcher } from './config-file-watcher.js';
 import { release as osRelease, arch as osArch } from 'node:os';
 import {
   generalizedErrorMessage,
@@ -12,6 +13,8 @@ import {
   healthSignalFromConnection,
   healthSignalFromConnectionRuntime,
   isPermissionMode,
+  isThinkingLevel,
+  thinkingVariantsForModel,
   DEEP_RESEARCH_SESSION_LABEL,
   botDisplayLabel,
   humanizeBotStatusReason,
@@ -28,6 +31,7 @@ import type {
   SessionEvent,
   SessionHeader,
   SessionListFilter,
+  ThinkingLevel,
   StoredMessage,
   SettingsTestResult,
   UpdateAppSettingsResult,
@@ -90,7 +94,7 @@ import type {
 } from '@maka/runtime';
 import { testProxyConnection } from '@maka/runtime/network/proxy-test';
 import { fetchWeChatQrcode, pollWeChatQrcodeStatus } from './wechat-scan-login.js';
-import type { LlmConnection } from '@maka/core/llm-connections';
+import type { LlmConnection, ProviderType } from '@maka/core/llm-connections';
 import { createAgentRunStore, createArtifactStore, createConnectionStore, createPlanReminderStore, createRuntimeEventStore, createSessionStore, createSettingsStore, createTelemetryRepo } from '@maka/storage';
 import {
   ensureSessionCanSendOrRebind,
@@ -165,6 +169,7 @@ import { createBotIncomingMainService } from './bot-incoming-main.js';
 import { createSubscriptionModelFetch } from './subscription-model-fetch.js';
 import { buildContextBudgetPolicy } from './context-budget-policy.js';
 import { createSystemPromptMainService } from './system-prompt-main.js';
+import { createMainTaskLedgerWiring } from './task-ledger-wiring.js';
 import { createOAuthModelConnectionsMainService } from './oauth-model-connections-main.js';
 import {
   applyNetworkPatch,
@@ -218,6 +223,7 @@ try {
   throw error;
 }
 const workspaceRoot = join(app.getPath('userData'), 'workspaces', visualSmokeFixture?.workspaceName ?? 'default');
+let configWatcher: ConfigFileWatcher | undefined;
 const store = createSessionStore(workspaceRoot);
 const runStore = createAgentRunStore(workspaceRoot);
 const runtimeEventStore = createRuntimeEventStore(workspaceRoot);
@@ -298,6 +304,8 @@ const antigravitySubscription = new AntigravitySubscriptionService({
 });
 
 const planReminderStore = createPlanReminderStore(workspaceRoot);
+const taskLedgerWiring = createMainTaskLedgerWiring(workspaceRoot);
+const taskLedgerStore = taskLedgerWiring.store;
 
 async function getWorkspacePrivacyContext(): Promise<WorkspacePrivacyContext> {
   const settings = await settingsStore.get();
@@ -314,6 +322,7 @@ const systemPromptService = createSystemPromptMainService({
   settingsStore,
   workspaceRoot,
   localMemory,
+  taskLedger: taskLedgerStore,
 });
 const mainWindowController = createMainWindowController({
   workspaceRoot,
@@ -400,6 +409,9 @@ const builtinTools = [
     settingsStore,
     getPrivacyContext: getWorkspacePrivacyContext,
   }),
+  // Session task ledger: model manages a flat task list; the current list is
+  // re-injected each turn tail. Pure local state, so no permission gate.
+  ...taskLedgerWiring.tools,
   // The `load_tools` connector is built by ToolAvailabilityRuntime; deferred
   // group tools just need to be present so they are dispatchable once loaded.
   ...deferredTools,
@@ -579,13 +591,13 @@ backends.register('ai-sdk', async (ctx) => {
     spawnChildAgent: (input) => runtime.spawnChildAgent(ctx.sessionId, input),
     listChildAgents: () => runtime.listChildAgents(ctx.sessionId),
     readChildAgentOutput: (input) => runtime.readChildAgentOutput(ctx.sessionId, input),
-    providerOptions: buildProviderOptions(connection, model),
+    providerOptions: buildProviderOptions(connection, model, ctx.header.thinkingLevel),
     contextBudget: buildContextBudgetPolicy(connection),
     systemPrompt: ({ cwd }) => systemPromptService.buildBackendSystemPrompt(ctx.header, cwd, {
       memoryFragment: memoryPromptSnapshot,
       childInstruction: ctx.systemPrompt,
     }),
-    turnTailPrompt: ({ cwd }) => systemPromptService.buildTurnTailPrompt(cwd),
+    turnTailPrompt: ({ cwd, sessionId }) => systemPromptService.buildTurnTailPrompt(cwd, sessionId),
     lookupPricing,
     recordLlmCall: (event) => recordLlmCall({ repo: telemetryRepo, lookupPricing }, event),
     recordToolInvocation: (event) =>
@@ -828,6 +840,21 @@ function registerIpc(): void {
     return resolveProjectRoot([process.cwd(), app.getAppPath()]);
   }
 
+  async function resolveExplicitProjectRoot(projectPath: unknown): Promise<
+    | { ok: true; projectPath: string }
+    | { ok: false; reason: 'invalid-path' | 'not-found' }
+  > {
+    if (typeof projectPath !== 'string' || !projectPath) {
+      return { ok: false, reason: 'invalid-path' };
+    }
+    try {
+      await stat(projectPath);
+    } catch {
+      return { ok: false, reason: 'not-found' };
+    }
+    return { ok: true, projectPath: await resolveProjectRoot([projectPath]) };
+  }
+
   ipcMain.handle('window:setTitlebarControlsVisible', (event, visible: unknown): void => {
     mainWindowController.setTitlebarControlsVisible(event.sender, visible);
   });
@@ -892,35 +919,36 @@ function registerIpc(): void {
     async (_event, projectPath: unknown): Promise<
       | { ok: true; projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }
       | { ok: false; reason: 'invalid-path' | 'not-found' }
-	    > => {
-	      if (typeof projectPath !== 'string' || !projectPath) {
-	        return { ok: false, reason: 'invalid-path' };
-	      }
-	      // Validate that the path actually exists before passing it to
-	      // resolveProjectRoot, which silently falls back to process.cwd()
-	      // when none of its candidates are usable. A stale recent-workspace
-	      // entry (deleted/moved directory) must not silently switch the
-	      // active project to an unrelated location.
-	      try {
-	        await stat(projectPath);
-	      } catch {
-	        return { ok: false, reason: 'not-found' };
-	      }
-	      const resolved = await resolveProjectRoot([projectPath]);
-	      selectedProjectRoot = resolved;
-	      void saveLastProjectPath(resolved);
-	      return {
-	        ok: true,
-	        projectPath: resolved,
-	        projectGit: await resolveProjectGitInfo(resolved),
-	      };
-	    },
+    > => {
+      const explicitRoot = await resolveExplicitProjectRoot(projectPath);
+      if (!explicitRoot.ok) return explicitRoot;
+      const resolved = explicitRoot.projectPath;
+      selectedProjectRoot = resolved;
+      void saveLastProjectPath(resolved);
+      return {
+        ok: true,
+        projectPath: resolved,
+        projectGit: await resolveProjectGitInfo(resolved),
+      };
+    },
   );
   ipcMain.handle(
     'app:resolveProjectGitInfo',
-    async (_event, projectPath: unknown): Promise<{ projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }> => {
-      const resolved = typeof projectPath === 'string' ? await resolveProjectRoot([projectPath]) : await currentProjectRoot();
-      return { projectPath: resolved, projectGit: await resolveProjectGitInfo(resolved) };
+    async (
+      _event,
+      projectPath: unknown,
+    ): Promise<
+      | { ok: true; projectPath: string; projectGit: Awaited<ReturnType<typeof resolveProjectGitInfo>> }
+      | { ok: false; reason: 'invalid-path' | 'not-found' }
+    > => {
+      if (projectPath !== undefined) {
+        const explicitRoot = await resolveExplicitProjectRoot(projectPath);
+        if (!explicitRoot.ok) return explicitRoot;
+        const resolved = explicitRoot.projectPath;
+        return { ok: true, projectPath: resolved, projectGit: await resolveProjectGitInfo(resolved) };
+      }
+      const resolved = await currentProjectRoot();
+      return { ok: true, projectPath: resolved, projectGit: await resolveProjectGitInfo(resolved) };
     },
   );
   ipcMain.handle('app:listGitBranches', async () => {
@@ -1096,7 +1124,7 @@ function registerIpc(): void {
   registerPlanReminderIpc({ planReminders, getWorkspacePrivacyContext });
   ipcMain.handle('sessions:list', (_event, filter?: SessionListFilter) => runtime.listSessions(filter));
   ipcMain.handle('sessions:create', async (_event, input?: Partial<CreateSessionInput>) => {
-    const cwd = input?.cwd ?? process.cwd();
+    const cwd = input?.cwd ?? (await currentProjectRoot());
     if (input?.backend === 'fake') {
       if (!canCreateFakeSessionFromRenderer()) {
         throw new Error('FakeBackend sessions are only available in development.');
@@ -1116,12 +1144,14 @@ function registerIpc(): void {
 
     const requestedSlug = input?.llmConnectionSlug ?? (await connectionStore.getDefault());
     const { connection, model } = await getReadyConnection(requestedSlug, input?.model);
+    const thinkingLevel = normalizeSupportedSessionThinkingLevel(input?.thinkingLevel, connection.providerType, model);
 
     const session = await runtime.createSession({
       cwd,
       backend: 'ai-sdk',
       llmConnectionSlug: connection.slug,
       model,
+      ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
       permissionMode: input?.permissionMode ?? (await resolveDefaultPermissionMode(() => settingsStore.get())),
       name: input?.name ?? 'New Chat',
       labels: input?.labels,
@@ -1290,6 +1320,8 @@ function registerIpc(): void {
       backend: 'ai-sdk',
       llmConnectionSlug: ready.connection.slug,
       model: ready.model,
+      // Switching model clears the per-model thinking variant (see model-thinking.ts).
+      thinkingLevel: undefined,
       connectionLocked: true,
       status: 'active',
       blockedReason: undefined,
@@ -1299,6 +1331,23 @@ function registerIpc(): void {
       connectionSlug: ready.connection.slug,
       modelId: ready.model,
     });
+    return next;
+  });
+  ipcMain.handle('sessions:setThinkingLevel', async (_event, sessionId: string, input: unknown) => {
+    const header = await store.readHeader(sessionId);
+    if (header.status === 'running') {
+      throw new Error('当前对话正在运行，等结束后再切换思考级别。');
+    }
+    if (header.status === 'waiting_for_user') {
+      throw new Error('当前有工具调用正在等待确认，处理后再切换思考级别。');
+    }
+    const connection = await connectionStore.get(header.llmConnectionSlug);
+    if (!connection) {
+      throw new Error(`Unknown connection: ${header.llmConnectionSlug}`);
+    }
+    const nextThinkingLevel = normalizeSupportedSessionThinkingLevel(input, connection.providerType, header.model);
+    const next = await runtime.updateSession(sessionId, nextThinkingLevel === undefined ? { thinkingLevel: undefined } : { thinkingLevel: nextThinkingLevel });
+    emitSessionsChanged('updated', sessionId);
     return next;
   });
   ipcMain.handle('sessions:remove', async (_event, sessionId: string) => {
@@ -1339,7 +1388,7 @@ function registerIpc(): void {
   // surfaces (connectionSlug / model) will land in PR110c/d when the
   // model-picker UI is ready.
   ipcMain.handle('quickChat:start', async (_event, input: unknown) => {
-    return handleQuickChatStart(input);
+    return handleQuickChatStart(input, currentProjectRoot);
   });
 
   ipcMain.handle('permissions:getSnapshot', () => buildPermissionSnapshot());
@@ -1519,6 +1568,22 @@ async function applySettingsRuntimeEffects(settings: AppSettings, patch: UpdateA
   }
 }
 
+async function handleExternalSettingsChange(): Promise<void> {
+  try {
+    const settings = await settingsStore.get();
+    const fullPatch: UpdateAppSettingsInput = {
+      network: settings.network,
+      botChat: settings.botChat,
+      openGateway: settings.openGateway,
+    };
+    await applySettingsRuntimeEffects(settings, fullPatch);
+  } catch (error) {
+    console.error('[config-watcher] failed to apply external settings change:', error);
+  }
+  // Always notify renderer, even on partial failure above
+  safeSendToRenderer('settings:externalChanged', { ts: Date.now() });
+}
+
 async function streamEvents(
   sessionId: string,
   iterator: AsyncIterable<SessionEvent>,
@@ -1623,13 +1688,32 @@ function getReadyConnection(slug: string | null | undefined, model?: string) {
   return requireReadyConnection(slug, readyConnectionDeps, model);
 }
 
+function normalizeSupportedSessionThinkingLevel(
+  input: unknown,
+  providerType: ProviderType,
+  model: string,
+): ThinkingLevel | undefined {
+  const thinkingLevel = input === undefined || input === null ? undefined : input;
+  if (thinkingLevel === undefined) return undefined;
+  if (!isThinkingLevel(thinkingLevel)) {
+    throw new Error(`Invalid thinking level: ${String(input)}`);
+  }
+  if (!thinkingVariantsForModel(providerType, model).includes(thinkingLevel)) {
+    throw new Error(`当前模型不支持思考级别：${thinkingLevel}`);
+  }
+  return thinkingLevel;
+}
+
 /**
  * PR110b: Quick Chat entry — thin adapter over the extracted helper.
  * The discriminated-union logic + readiness gating lives in
  * `./quick-chat.ts` so it can be unit-tested without spinning up an
  * Electron app.
  */
-async function handleQuickChatStart(rawInput: unknown): Promise<QuickChatResult> {
+async function handleQuickChatStart(
+  rawInput: unknown,
+  getCurrentProjectRoot: () => Promise<string>,
+): Promise<QuickChatResult> {
   return runQuickChatStart(rawInput, {
     getOnboardingState: async () => (await onboardingService.getSnapshot()).state,
     createSession: async (input) => {
@@ -1648,7 +1732,7 @@ async function handleQuickChatStart(rawInput: unknown): Promise<QuickChatResult>
           : resolveDefaultPermissionMode(() => settingsStore.get()),
       ]);
       return runtime.createSession({
-        cwd: process.cwd(),
+        cwd: await getCurrentProjectRoot(),
         backend: 'ai-sdk',
         llmConnectionSlug: ready.connection.slug,
         model: ready.model,
@@ -1855,6 +1939,10 @@ async function runBackgroundStartup(): Promise<void> {
   await openGateway.sync(settings.openGateway);
   await planReminders.refreshTimers();
   dailyReview.startScheduler();
+  configWatcher = startConfigFileWatcher(workspaceRoot, {
+    onConnectionsChanged: () => emitConnectionListChanged(),
+    onSettingsChanged: () => void handleExternalSettingsChange(),
+  });
 }
 
 app.on('window-all-closed', () => {
@@ -1862,6 +1950,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  configWatcher?.stop();
   planReminders.stopTimers();
   dailyReview.stopScheduler();
   void botRegistry.stopAll();

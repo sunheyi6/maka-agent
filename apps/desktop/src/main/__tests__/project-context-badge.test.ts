@@ -80,12 +80,18 @@ describe('project context workspace picker', () => {
 
     assert.match(main, /let selectedProjectRoot: string \| null = null;/);
     assert.match(main, /if \(selectedProjectRoot\) return selectedProjectRoot;/);
+    assert.match(main, /async function resolveExplicitProjectRoot\(projectPath: unknown\): Promise</);
     assert.match(main, /ipcMain\.handle\(\s*'app:selectProjectDirectory'/);
     assert.match(main, /mainWindowController\.showOpenDialog\(\{[\s\S]*title:\s*'选择工作目录'[\s\S]*properties:\s*\['openDirectory'\]/);
     assert.match(main, /dialog\.showOpenDialog\(mainWindow,\s*options\)/);
     assert.match(main, /const projectPath = await resolveProjectRoot\(\[selectedPath\]\)/);
     assert.match(main, /selectedProjectRoot = projectPath;/);
     assert.match(main, /projectGit:\s*await resolveProjectGitInfo\(projectPath\)/);
+    assert.match(
+      main,
+      /'app:resolveProjectGitInfo'[\s\S]*const explicitRoot = await resolveExplicitProjectRoot\(projectPath\);[\s\S]*if \(!explicitRoot\.ok\) return explicitRoot;/,
+      'explicit project git lookups must validate the supplied path instead of falling back to process.cwd()',
+    );
     assert.match(
       main,
       /async function loadPersistedProjectRoot\(\): Promise<string \| null> \{[\s\S]*await stat\(parsed\.projectPath\)[\s\S]*return await resolveProjectRoot\(\[parsed\.projectPath\]\)/,
@@ -130,6 +136,18 @@ describe('project context workspace picker', () => {
     assert.match(workspacePickerBlock, /pending:\s*projectPickerPending/);
     assert.match(workspacePickerBlock, /void selectProjectDirectory\(\)/);
     assert.doesNotMatch(workspacePickerBlock, /openProjectFolder\(\)|openWorkspaceFolder\(\)|openPath\(/);
+  });
+
+  it('defaults new sessions to the main-owned current project root', async () => {
+    const main = await readRepo('apps/desktop/src/main/main.ts');
+    const chatActions = await readRepo('apps/desktop/src/renderer/app-shell-chat-actions.ts');
+
+    assert.match(main, /const cwd = input\?\.cwd \?\? \(await currentProjectRoot\(\)\)/);
+    assert.match(main, /handleQuickChatStart\(input, currentProjectRoot\)/);
+    assert.match(main, /cwd:\s*await getCurrentProjectRoot\(\)/);
+    assert.doesNotMatch(main, /const cwd = input\?\.cwd \?\? process\.cwd\(\)/);
+    assert.doesNotMatch(main, /cwd:\s*process\.cwd\(\)/);
+    assert.doesNotMatch(chatActions, /\.\.\.\(projectPath \? \{ cwd: projectPath \} : \{\}\)/);
   });
 
   it('resolves workspace instruction files under the selected project root', async () => {

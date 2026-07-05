@@ -13,7 +13,6 @@
   --color-text-secondary: var(--foreground-secondary);
   --color-text-tertiary: var(--muted-foreground);
   --color-text-quaternary: var(--muted-foreground);
-  --color-text-on-primary: #fff;
   --color-border: var(--border);
   --color-border-secondary: var(--border);
   --color-fill: var(--foreground-8);
@@ -89,7 +88,7 @@
   margin: var(--agents-content-area-gap);
   border-radius: var(--radius-modal);
   background: var(--agents-content-area-bg);
-  transition: margin-left 150ms var(--ease-out-strong);
+  transition: margin-left var(--duration-base) var(--ease-out-strong);
 }
 
 /* PR-SETTINGS-RESTORE-SURFACE-0 (WAWQAQ msg `c8dc03e4`): main chat

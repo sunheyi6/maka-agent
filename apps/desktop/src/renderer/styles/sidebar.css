@@ -333,8 +333,8 @@
   color: var(--foreground);
 }
 .maka-search-modal-close:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
 }
 /* PR-UX-POLISH-1 commit 5: real search modal layout.
  * - input-row: text input + leading magnifier icon, sits below the
@@ -378,8 +378,8 @@
   color: var(--foreground);
 }
 .maka-search-modal-clear:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .maka-search-modal-body {
@@ -465,11 +465,11 @@
 .maka-search-modal-result:focus-visible {
   outline: none;
   background: var(--state-hover-bg);
-  box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.18);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.18);
 }
 .maka-search-modal-result[disabled] {
   cursor: default;
-  opacity: 0.7;
+  opacity: var(--opacity-muted);
 }
 .maka-search-modal-result-title {
   min-width: 0;
@@ -807,8 +807,8 @@
   opacity: 0;
   transform: translateX(8px);
   transition:
-    opacity 140ms var(--ease-out-strong),
-    transform 140ms var(--ease-out-strong);
+    opacity var(--duration-base) var(--ease-out-strong),
+    transform var(--duration-base) var(--ease-out-strong);
   pointer-events: none;
 }
 
@@ -881,7 +881,7 @@
 
 .maka-list-row:has(.maka-list-row-main:focus-visible) {
   border-color: oklch(from var(--focus-ring) l c h / 0.4);
-  box-shadow: 0 0 0 2px oklch(from var(--focus-ring) l c h / 0.18);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.18);
 }
 
 .maka-prompt-suggestions {
@@ -915,8 +915,8 @@
   padding: var(--space-2-5) var(--space-3);
   text-align: left;
   transition:
-    border-color 140ms var(--ease-out-strong),
-    background 140ms var(--ease-out-strong);
+    border-color var(--duration-base) var(--ease-out-strong),
+    background var(--duration-base) var(--ease-out-strong);
 }
 
 .maka-prompt-chip:hover {

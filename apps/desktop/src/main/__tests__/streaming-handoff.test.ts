@@ -160,7 +160,6 @@ describe('assistant streaming handoff', () => {
         isNewChatSendSurfaceActive: () => false,
         markSessionReadLocally: () => {},
         messageRetryPendingRef: { current: new Set<string>() },
-        projectPath: null,
         refreshSessions: async () => [],
         setActiveId: (sessionId) => {
           activeIdRef.current = sessionId;
@@ -177,6 +176,7 @@ describe('assistant streaming handoff', () => {
         pendingNewChatPermissionMode: null,
         setPendingNewChatPermissionMode: () => {},
         validPendingNewChatModel: null,
+        pendingNewChatThinkingLevel: null,
       });
 
       const handlers = createAppShellSessionEventHandlers({

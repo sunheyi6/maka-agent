@@ -62,7 +62,7 @@
 /* Gated providers (preview / not-yet-open) stay inert and muted; the
  * provider-surface gate forbids rendering them as actionable. */
 .providerCatalogRow[data-disabled="true"] {
-  opacity: 0.66;
+  opacity: var(--opacity-muted);
   cursor: not-allowed;
   filter: grayscale(0.28);
 }
@@ -164,14 +164,14 @@
   padding: 0 var(--space-3);
   outline: none;
   font-size: var(--font-size-ui);
-  transition: border-color 140ms var(--ease-out-strong), box-shadow 140ms var(--ease-out-strong), background 140ms var(--ease-out-strong);
+  transition: border-color var(--duration-base) var(--ease-out-strong), box-shadow var(--duration-base) var(--ease-out-strong), background var(--duration-base) var(--ease-out-strong);
 }
 
 .providerEditor input:focus,
 .providerEditor select:focus {
   border-color: oklch(from var(--focus-ring) l c h / 0.42);
   background: var(--background);
-  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.10);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.10);
 }
 
 .providerActions {
@@ -210,7 +210,7 @@
 .providerExternalLink:focus-visible {
   outline: none;
   background: oklch(from var(--focus-ring) l c h / 0.06);
-  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.14);
 }
 
 /* UI-02 model table: per-row default radio, capability chips, search box,
@@ -279,7 +279,7 @@
   color: var(--foreground);
   font-size: var(--font-size-ui);
   font-family: var(--font-mono);
-  transition: border-color 140ms var(--ease-out-strong), box-shadow 140ms var(--ease-out-strong);
+  transition: border-color var(--duration-base) var(--ease-out-strong), box-shadow var(--duration-base) var(--ease-out-strong);
 }
 
 .modelTableSearch:focus {
@@ -287,7 +287,7 @@
   /* PR-UI-LAYOUT-22: brought into the focus-ring family — was
    * border-color only, now 3px accent halo to match the rest. */
   border-color: oklch(from var(--focus-ring) l c h / 0.42);
-  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.10);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.10);
 }
 
 .modelTableEmpty {
@@ -369,7 +369,7 @@
   outline: none;
   background: var(--background);
   border-color: oklch(from var(--focus-ring) l c h / 0.42);
-  box-shadow: 0 0 0 3px oklch(from var(--focus-ring) l c h / 0.14);
+  box-shadow: 0 0 0 var(--focus-ring-width) oklch(from var(--focus-ring) l c h / 0.14);
 }
 
 .modelTableRow[data-default="true"] {

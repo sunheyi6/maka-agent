@@ -13,7 +13,7 @@
  *  - FakeBackend       — text-only stub for UI development
  */
 
-export { SessionManager, BackendRegistry, headerToSummary } from './session-manager.js';
+export { SessionManager, BackendRegistry, headerToSummary, changesBackendConfig } from './session-manager.js';
 export type {
   SessionManagerDeps,
   SessionStore,
@@ -128,6 +128,11 @@ export {
   buildSubagentSpawnTool,
   buildSubagentToolGroup,
 } from './subagent-tools.js';
+export {
+  TASK_CREATE_TOOL_NAME,
+  TASK_UPDATE_TOOL_NAME,
+  buildTaskLedgerTools,
+} from './task-ledger-tools.js';
 export {
   deriveToolArtifactCandidates,
   extractStdoutRedirectPath,
