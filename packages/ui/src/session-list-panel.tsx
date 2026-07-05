@@ -64,6 +64,7 @@ export function SessionListPanel(props: {
         activeId={props.activeId}
         streamingSessionIds={props.streamingSessionIds}
         staleSessionIds={props.staleSessionIds}
+        groupVariant={viewMode === 'project' ? 'project' : 'status'}
         statusGroups={statusGroups}
         onSelectSession={props.onSelectSession}
         rowActions={props.rowActions}

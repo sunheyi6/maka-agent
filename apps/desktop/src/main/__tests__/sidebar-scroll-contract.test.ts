@@ -104,6 +104,17 @@ describe('sidebar session list CSS scroll contract (PR-SIDEBAR-IA-0 Phase 1)', (
     );
   });
 
+  it('.maka-session-panel reserves explicit rows for header, nav, view toggle, list, and footer', async () => {
+    const css = await readRendererContractCss();
+    const ruleBody = extractRuleBody(css, '.maka-session-panel');
+    assert.ok(ruleBody, '.maka-session-panel rule must exist');
+    assert.match(
+      ruleBody,
+      /grid-template-rows:\s*auto\s+auto\s+auto\s+minmax\(\s*0\s*,\s*1fr\s*\)\s+auto/,
+      'sidebar panel must keep the view-mode toggle in its own row above the constrained session list',
+    );
+  });
+
   it('keeps the sidebar shell flat without a shadow-like gray resize gutter', async () => {
     const css = await readRendererContractCss();
     const listPanel = extractRuleBody(css, '.maka-panel-list.maka-floating-panel');

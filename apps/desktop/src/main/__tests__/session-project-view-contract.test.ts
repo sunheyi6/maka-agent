@@ -44,6 +44,40 @@ describe('sidebar project view mode', () => {
     assert.match(fallbackMarkup, /待发送/);
   });
 
+  it('renders the status/project view mode controls as pressed buttons', () => {
+    const statusMarkup = renderSessionListPanel({ viewMode: 'status' });
+    assert.match(statusMarkup, /<button[^>]*type="button"[^>]*aria-pressed="true"[^>]*>[\s\S]*?<span>按状态/);
+    assert.match(statusMarkup, /<button[^>]*type="button"[^>]*aria-pressed="false"[^>]*>[\s\S]*?<span>按项目/);
+
+    const projectMarkup = renderSessionListPanel({ viewMode: 'project' });
+    assert.match(projectMarkup, /<button[^>]*type="button"[^>]*aria-pressed="false"[^>]*>[\s\S]*?<span>按状态/);
+    assert.match(projectMarkup, /<button[^>]*type="button"[^>]*aria-pressed="true"[^>]*>[\s\S]*?<span>按项目/);
+  });
+
+  it('renders project groups as folder headers with an initial four-session preview', () => {
+    const sessions = Array.from({ length: 5 }, (_, index) => makeSessionSummary({
+      id: `project-session-${index + 1}`,
+      name: `Project chat ${index + 1}`,
+      cwd: 'D:\\work\\testzcode',
+      lastMessageAt: 10 - index,
+    }));
+
+    const markup = renderSessionListPanel({
+      sessions,
+      statusGroups: deriveProjectGroups(sessions),
+      viewMode: 'project',
+    });
+
+    assert.match(markup, /class="[^"]*maka-list-project-heading[^"]*"/);
+    assert.match(markup, /<button[^>]*class="[^"]*maka-list-project-heading[^"]*"[^>]*aria-expanded="true"[^>]*aria-controls="maka-list-group-body-project:[^"]+"/);
+    assert.match(markup, /lucide-folder-open/);
+    assert.match(markup, />testzcode</);
+    assert.match(markup, /Project chat 1/);
+    assert.match(markup, /Project chat 4/);
+    assert.doesNotMatch(markup, /Project chat 5/);
+    assert.match(markup, /显示更多/);
+  });
+
   it('AppShell derives status and project groups from the same visible session set', async () => {
     const appShell = await readRepo('apps/desktop/src/renderer/app-shell.tsx');
     const panel = await readRepo('packages/ui/src/session-list-panel.tsx');

@@ -657,6 +657,10 @@
   display: none;
 }
 
+.maka-session-panel[data-collapsed="true"] .maka-view-mode-toggle {
+  display: none;
+}
+
 .maka-list-stack {
   min-height: 0;
   overflow: hidden;
@@ -688,6 +692,12 @@
   border-top: var(--border-width-hairline) solid oklch(from var(--foreground) l c h / 0.05);
 }
 
+.maka-list-group[data-variant="project"] + .maka-list-group[data-variant="project"] {
+  margin-top: var(--space-3);
+  padding-top: 0;
+  border-top: 0;
+}
+
 /* Group label — section header for session groups. Weight-based
    hierarchy (not uppercase/letter-spacing) so Chinese labels read
    cleanly without artificial tracking. */
@@ -700,6 +710,65 @@
   font-size: var(--font-size-caption);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
+}
+
+.maka-list-project-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  width: 100%;
+  min-height: var(--h-control-lg);
+  padding: 0 var(--space-1-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--foreground-secondary);
+  font-size: var(--font-size-ui);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+}
+
+.maka-list-project-heading:hover {
+  background: var(--state-hover-bg);
+  color: var(--foreground);
+}
+
+.maka-list-project-heading:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.maka-list-project-heading svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+}
+
+.maka-list-group[data-variant="project"] .maka-list-row-main {
+  padding-left: var(--space-8);
+}
+
+.maka-list-project-more {
+  min-height: var(--h-control-lg);
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-ui);
+  padding: 0 var(--space-1-5) 0 var(--space-8);
+  text-align: left;
+}
+
+.maka-list-project-more:hover {
+  color: var(--foreground-secondary);
+}
+
+.maka-list-project-more:focus-visible {
+  outline: var(--focus-ring-width) solid var(--ring);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-control);
 }
 
 /* PR-SIDEBAR-IA-0 Phase 3 (WAWQAQ msgs `14ed98b5`, `761141c5` —
