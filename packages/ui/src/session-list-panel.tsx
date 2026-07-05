@@ -7,12 +7,6 @@ import { FolderOpen, Grid3X3 } from './icons.js';
 
 export type SessionViewMode = 'status' | 'project';
 
-export interface ProjectGroup {
-  projectPath: string;
-  label: string;
-  sessions: SessionSummary[];
-}
-
 export function SessionListPanel(props: {
   selection: NavSelection;
   sessions: SessionSummary[];
@@ -21,7 +15,6 @@ export function SessionListPanel(props: {
   streamingSessionIds?: Set<string>;
   staleSessionIds?: Set<string>;
   statusGroups?: ReadonlyArray<SessionHistoryStatusGroup>;
-  projectGroups?: ReadonlyArray<ProjectGroup>;
   viewMode?: SessionViewMode;
   onViewModeChange?: (mode: SessionViewMode) => void;
   onSelectSession(sessionId: string): void;
@@ -34,33 +27,8 @@ export function SessionListPanel(props: {
   const {
     viewMode = 'status',
     onViewModeChange,
-    projectGroups,
     statusGroups,
-    sessions,
   } = props;
-
-  let groups: ReadonlyArray<SessionHistoryStatusGroup>;
-
-  if (viewMode === 'project' && projectGroups) {
-    groups = projectGroups.map((g) => ({
-      id: g.projectPath || '__ungrouped__',
-      label: g.label,
-      sessions: g.sessions,
-      collapsible: true,
-      defaultExpanded: true,
-    }));
-  } else if (statusGroups) {
-    groups = statusGroups;
-  } else {
-    // Fallback: treat all sessions as a single group.
-    groups = [{
-      id: 'all',
-      label: '',
-      sessions: sessions as SessionSummary[],
-      collapsible: false,
-      defaultExpanded: true,
-    }];
-  }
 
   return (
     <aside
@@ -102,7 +70,7 @@ export function SessionListPanel(props: {
         activeId={props.activeId}
         streamingSessionIds={props.streamingSessionIds}
         staleSessionIds={props.staleSessionIds}
-        statusGroups={groups}
+        statusGroups={statusGroups}
         onSelectSession={props.onSelectSession}
         rowActions={props.rowActions}
       />

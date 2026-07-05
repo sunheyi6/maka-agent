@@ -1060,8 +1060,7 @@
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--foreground-secondary);
-  font-size: var(--font-size-ui-sm);
-  cursor: pointer;
+  font-size: var(--font-size-ui);
   transition: background var(--duration-quick) var(--ease-out-strong),
               color var(--duration-quick) var(--ease-out-strong);
 }

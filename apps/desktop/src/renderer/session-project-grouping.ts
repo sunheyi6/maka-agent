@@ -5,7 +5,7 @@
  */
 
 import type { SessionSummary } from '@maka/core';
-import type { ProjectGroup } from '@maka/ui';
+import type { SessionHistoryStatusGroup } from '@maka/ui';
 
 const UNGROUPED_LABEL = '未归属项目';
 const UNGROUPED_KEY = '__ungrouped__';
@@ -15,7 +15,7 @@ const UNGROUPED_KEY = '__ungrouped__';
  * Groups are returned in insertion order; the ungrouped bucket (if any)
  * appears last. The label is the basename of the project directory.
  */
-export function deriveProjectGroups(sessions: ReadonlyArray<SessionSummary>): ProjectGroup[] {
+export function deriveProjectGroups(sessions: ReadonlyArray<SessionSummary>): SessionHistoryStatusGroup[] {
   const map = new Map<string, SessionSummary[]>();
   for (const session of sessions) {
     const key = session.cwd ?? UNGROUPED_KEY;
@@ -27,22 +27,26 @@ export function deriveProjectGroups(sessions: ReadonlyArray<SessionSummary>): Pr
     bucket.push(session);
   }
 
-  const groups: ProjectGroup[] = [];
+  const groups: SessionHistoryStatusGroup[] = [];
   for (const [key, bucket] of map) {
     if (key === UNGROUPED_KEY) continue; // append last
     groups.push({
-      projectPath: key,
+      id: key,
       label: labelFromPath(key),
       sessions: bucket,
+      collapsible: true,
+      defaultExpanded: true,
     });
   }
   // Un-belonged sessions go last, in a single catch-all group.
   const ungrouped = map.get(UNGROUPED_KEY);
   if (ungrouped) {
     groups.push({
-      projectPath: '',
+      id: UNGROUPED_KEY,
       label: UNGROUPED_LABEL,
       sessions: ungrouped,
+      collapsible: true,
+      defaultExpanded: true,
     });
   }
   return groups;
