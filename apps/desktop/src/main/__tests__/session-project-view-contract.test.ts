@@ -58,4 +58,40 @@ describe('sidebar project view mode', () => {
     assert.doesNotMatch(panel, /projectGroups\?:/);
     assert.doesNotMatch(panel, /id: 'all'/);
   });
+
+  it('project group ids stay DOM-safe and distinct when the cwd has spaces or shared basenames', () => {
+    const sessions = [
+      makeSessionSummary({ id: 'a', cwd: '/Users/me/My Project/repo-a' }),
+      makeSessionSummary({ id: 'b', cwd: '/Users/me/Other/repo-a' }),
+      makeSessionSummary({ id: 'c', cwd: 'C:\\work\\spaced dir\\x' }),
+    ];
+    const groups = deriveProjectGroups(sessions);
+    const ids = groups.map((g) => g.id);
+
+    // DOM id must contain no ASCII whitespace and only DOM-safe chars.
+    for (const id of ids) {
+      assert.match(id, /^[A-Za-z0-9:_-]+$/, `group id must be DOM-safe, got: ${id}`);
+    }
+    // Distinct paths collapse to distinct ids even with a shared basename.
+    assert.equal(new Set(ids).size, ids.length, 'distinct cwds must produce distinct ids');
+    // The human-readable label is still the basename.
+    assert.ok(groups.some((g) => g.label === 'repo-a'), 'expected a repo-a label');
+    assert.ok(groups.some((g) => g.label === 'x'), 'expected an x label');
+
+    // Rendered markup: group body ids and aria-controls stay whitespace-free and pair up.
+    const markup = renderSessionListPanel({
+      sessions,
+      statusGroups: groups,
+      viewMode: 'project',
+    });
+    const bodyIds = [...markup.matchAll(/id="maka-list-group-body-([^"]*)"/g)].map((m) => m[1]);
+    const controls = [...markup.matchAll(/aria-controls="maka-list-group-body-([^"]*)"/g)].map((m) => m[1]);
+    assert.ok(bodyIds.length >= 3, `expected at least 3 group body ids, got ${bodyIds.length}`);
+    for (const id of [...bodyIds, ...controls]) {
+      assert.match(id, /^[A-Za-z0-9:_-]+$/, `rendered group id must be DOM-safe, got: ${id}`);
+    }
+    for (const control of controls) {
+      assert.ok(bodyIds.includes(control), `aria-controls references a missing body id: ${control}`);
+    }
+  });
 });

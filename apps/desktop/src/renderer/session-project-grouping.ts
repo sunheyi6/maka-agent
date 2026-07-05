@@ -31,7 +31,7 @@ export function deriveProjectGroups(sessions: ReadonlyArray<SessionSummary>): Se
   for (const [key, bucket] of map) {
     if (key === UNGROUPED_KEY) continue; // append last
     groups.push({
-      id: key,
+      id: groupIdFromPath(key),
       label: labelFromPath(key),
       sessions: bucket,
       collapsible: true,
@@ -56,4 +56,21 @@ function labelFromPath(projectPath: string): string {
   // Use the basename (last path segment) as the human-readable label.
   const parts = projectPath.replace(/\\/g, '/').replace(/\/+$/, '').split('/');
   return parts[parts.length - 1] || projectPath;
+}
+
+/**
+ * Derive a stable, DOM-safe group id from a project path. Paths can contain
+ * spaces and slashes, which are invalid in DOM ids and would break the
+ * `aria-controls` / body-id pairing in SessionListGroups. The basename alone
+ * is not enough: two projects can share a basename, so the full normalized
+ * path is hashed (FNV-1a) to keep distinct paths distinct.
+ */
+function groupIdFromPath(projectPath: string): string {
+  const normalized = projectPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < normalized.length; i++) {
+    hash ^= normalized.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `project:${(hash >>> 0).toString(36)}`;
 }
