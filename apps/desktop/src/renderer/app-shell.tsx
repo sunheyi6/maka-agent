@@ -245,7 +245,6 @@ export function AppShell({
   // restart with no visible signal, which is a safety regression.
   // The single authority is main.ts's Settings → 通用 default. See
   // session-status-presentation.test.ts for the contract.
-  const [pendingNewChatPermissionMode, setPendingNewChatPermissionMode] = useState<PermissionMode | null>(null);
   const [appInfo, setAppInfo] = useState<RendererAppInfo | null>(
     persistedComposerDefaults?.projectPath
       ? { projectPath: persistedComposerDefaults.projectPath, projectGit: { isGitRepo: false } }
@@ -566,8 +565,8 @@ export function AppShell({
     pendingSessionModelChangesRef,
     refreshSessions,
     sessionsRef,
+    setDefaultPermissionMode,
     setPendingPermissionModeBySession,
-    setPendingNewChatPermissionMode,
     setPendingSessionModelBySession,
     setSessions,
     toastApi,
@@ -902,8 +901,6 @@ export function AppShell({
     showModelSetupToast,
     toastApi,
     upsertSessionSummary,
-    pendingNewChatPermissionMode,
-    setPendingNewChatPermissionMode,
     validPendingNewChatModel,
     pendingNewChatThinkingLevel: newChatThinkingLevel ?? null,
   });
@@ -1570,7 +1567,7 @@ export function AppShell({
                       }
                     : undefined
                 }
-                permissionMode={activeSessionForView?.permissionMode ?? pendingNewChatPermissionMode ?? defaultPermissionMode}
+                permissionMode={defaultPermissionMode}
                 permissionModePending={activeId ? pendingPermissionModeBySession[activeId] === true : false}
                 permissionModeDisabledReason={
                   activeId && pendingPermissionModeBySession[activeId] === true
