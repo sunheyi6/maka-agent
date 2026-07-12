@@ -784,7 +784,7 @@ export const Composer = forwardRef<
         <div className="maka-composer-queue" aria-label="输入队列">
           {queuedInputs.map((item) => (
             <div className="maka-composer-queue-item" key={item.id}>
-              <GripVertical size={14} strokeWidth={1.8} aria-hidden="true" className="maka-composer-queue-grip" />
+              <GripVertical size={14} aria-hidden="true" className="maka-composer-queue-grip" />
               <span className="maka-composer-queue-text" title={item.text}>{item.text}</span>
               <div className="maka-composer-queue-actions">
                 <UiButton
@@ -797,7 +797,7 @@ export const Composer = forwardRef<
                   title="立即排队：当前回答结束后作为下一轮发送"
                   aria-label="立即排队，当前回答结束后作为下一轮发送"
                 >
-                  <ArrowUp size={13} strokeWidth={2} aria-hidden="true" />
+                  <ArrowUp size={13} aria-hidden="true" />
                   <span>立即</span>
                 </UiButton>
                 <UiButton
@@ -810,7 +810,7 @@ export const Composer = forwardRef<
                   title="编辑队列输入"
                   aria-label="编辑队列输入"
                 >
-                  <Pencil size={14} strokeWidth={1.85} aria-hidden="true" />
+                  <Pencil size={14} aria-hidden="true" />
                 </UiButton>
                 <UiButton
                   className="maka-composer-queue-icon"
@@ -822,7 +822,7 @@ export const Composer = forwardRef<
                   title="删除队列输入"
                   aria-label="删除队列输入"
                 >
-                  <Trash2 size={14} strokeWidth={1.85} aria-hidden="true" />
+                  <Trash2 size={14} aria-hidden="true" />
                 </UiButton>
               </div>
             </div>

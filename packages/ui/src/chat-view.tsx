@@ -1615,7 +1615,7 @@ function TurnTimelineEntry(props: {
         title={item.ts ? formatAbsoluteTimestamp(item.ts) : undefined}
       >
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-control)] bg-[oklch(from_var(--info)_l_c_h_/_0.10)] text-[color:var(--info-text)] text-xs">
-          <MessageCircleQuestion size={12} strokeWidth={2} aria-hidden="true" />
+          <MessageCircleQuestion size={12} aria-hidden="true" />
           引导已注入
         </span>
         <Bubble
