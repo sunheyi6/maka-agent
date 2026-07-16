@@ -4,11 +4,13 @@ import type {
   SettingsSection,
   ThemePalette,
   ThemePreference,
+  UiLocalePreference,
 } from '@maka/core';
 import { SearchModal } from '@maka/ui';
 import { KeyboardHelpModal } from './keyboard-help';
 import { CommandPalette } from './command-palette';
 import { buildAppShellCommandList, type AppShellCommandListOptions } from './app-shell-command-actions';
+import type { UiLocaleUpdateGate } from './settings/ui-locale-update-gate';
 
 // Settings is a large surface (providers, OAuth, network, bots, daily-review,
 // usage, etc.) that is only needed once the user opens the Settings modal.
@@ -43,6 +45,8 @@ export function AppShellOverlays(props: {
   setThemePref(themePref: ThemePreference): void;
   themePalette: ThemePalette;
   setThemePalette(themePalette: ThemePalette): void;
+  setUiLocalePreference: (preference: UiLocalePreference) => void;
+  uiLocaleUpdateGate: UiLocaleUpdateGate;
   setUserLabel(userLabel: string): void;
   settingsRequestedSection: SettingsSection | undefined;
   settingsProviderCatalogOpen: boolean;
@@ -83,6 +87,8 @@ export function AppShellOverlays(props: {
     settingsProviderCatalogOpen,
     setThemePalette,
     setThemePref,
+    setUiLocalePreference,
+    uiLocaleUpdateGate,
     setUserLabel,
     themePalette,
     themePref,
@@ -101,6 +107,8 @@ export function AppShellOverlays(props: {
             onThemeChange={setThemePref}
             themePalette={themePalette}
             onThemePaletteChange={setThemePalette}
+            onUiLocalePreferenceChange={setUiLocalePreference}
+            uiLocaleUpdateGate={uiLocaleUpdateGate}
             onUserLabelChange={setUserLabel}
             requestedSection={settingsRequestedSection}
             openProviderCatalog={settingsProviderCatalogOpen}

@@ -7,6 +7,7 @@ import type {
   SettingsSection,
   ThemePalette,
   ThemePreference,
+  UiLocalePreference,
   UpdateAppSettingsResult,
   UsageRange,
   UsageStats,
@@ -33,6 +34,7 @@ import { settingsActionErrorMessage } from './settings-error-copy';
 import { UsageSettingsPage } from './usage-settings-page';
 import { VoiceModelsSettingsPage } from './voice-settings-page';
 import { WebSearchSettingsPage } from './web-search-settings-page';
+import type { UiLocaleUpdateGate } from './ui-locale-update-gate';
 
 export function SettingsSurface(props: {
   connections: LlmConnection[];
@@ -43,6 +45,8 @@ export function SettingsSurface(props: {
   onThemeChange(pref: ThemePreference): void;
   themePalette: ThemePalette;
   onThemePaletteChange(palette: ThemePalette): void;
+  onUiLocalePreferenceChange(preference: UiLocalePreference): void;
+  uiLocaleUpdateGate: UiLocaleUpdateGate;
   onUserLabelChange?(label: string): void;
   requestedSection?: SettingsSection;
   openProviderCatalog?: boolean;
@@ -147,13 +151,26 @@ export function SettingsSurface(props: {
   async function updateSettings(patch: Parameters<typeof window.maka.settings.update>[0]) {
     const ticket = settingsUpdateTicketRef.current + 1;
     settingsUpdateTicketRef.current = ticket;
-    const result = await window.maka.settings.update(patch);
-    const next = result.settings;
-    if (settingsModalMountedRef.current && ticket === settingsUpdateTicketRef.current) {
-      setSettings(next);
-      props.onUserLabelChange?.(next.personalization.displayName);
+    const uiLocaleTicket = props.uiLocaleUpdateGate.begin(
+      patch.personalization?.uiLocale !== undefined,
+    );
+    try {
+      const result = await window.maka.settings.update(patch);
+      const next = result.settings;
+      props.uiLocaleUpdateGate.commit(
+        uiLocaleTicket,
+        next.personalization.uiLocale,
+        props.onUiLocalePreferenceChange,
+      );
+      if (settingsModalMountedRef.current && ticket === settingsUpdateTicketRef.current) {
+        setSettings(next);
+        props.onUserLabelChange?.(next.personalization.displayName);
+      }
+      return result;
+    } catch (error) {
+      props.uiLocaleUpdateGate.cancel(uiLocaleTicket);
+      throw error;
     }
-    return result;
   }
 
   async function reloadUsage(range: UsageRange = settings.usage.range) {

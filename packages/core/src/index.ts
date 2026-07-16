@@ -245,7 +245,6 @@ export {
   formatToolInvocationLine,
   type QuietPreview,
   type ToolInvocationInput,
-  type UiLocale,
 } from './tool-quiet-preview.js';
 export { redactSecrets as displayRedactSecrets } from './display-redaction.js';
 export {
@@ -1108,6 +1107,21 @@ export {
   parseAllowedUserIdsFromText,
 } from './settings.js';
 export type { BotDeliveryProvider } from './settings.js';
+
+// ui-locale.ts
+export type {
+  UiCatalog,
+  UiLocale,
+  UiLocalePreference,
+} from './ui-locale.js';
+export {
+  UI_LOCALES,
+  UI_LOCALE_PREFERENCES,
+  isUiLocale,
+  isUiLocalePreference,
+  resolveUiLocale,
+  uiLocaleToIntlLocale,
+} from './ui-locale.js';
 
 // bot-platform-hints.ts
 export type {
