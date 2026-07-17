@@ -1215,10 +1215,10 @@ describe('buildHarborJobConfig', () => {
     // Shared contract with the Python adapter (maka_agent.py _cell_timeout_sec):
     // an unparseable or non-positive MAKA_CELL_TIMEOUT_SEC falls back to the task
     // metadata timeout, or passes through for the adapter to apply its default.
-    // The "1e3" / "1.0" rows lock a known divergence from Python int() syntax:
-    // Number(raw) accepts them and the host rewrites the env to the parsed
-    // integer before the container sees it; unifying the accepted syntax is
-    // deferred to the fail-loud follow-up noted in PR #1137.
+    // Both sides accept an ASCII decimal positive integer literal only
+    // (regex [1-9][0-9]*) capped at 2^53-1, so "1e3"/"1.0"/"+1800"/"01800"/"1٢"
+    // are a miss; the over-long row locks the JS guard against Number() overflow
+    // (unified in #1145).
     const cases: Array<{ raw: string | undefined; parsed: number | undefined }> = [
       { raw: undefined, parsed: undefined },
       { raw: '', parsed: undefined },
@@ -1226,9 +1226,13 @@ describe('buildHarborJobConfig', () => {
       { raw: 'oops', parsed: undefined },
       { raw: '0', parsed: undefined },
       { raw: '-5', parsed: undefined },
-      { raw: '1e3', parsed: 1000 },
-      { raw: '1.0', parsed: 1 },
+      { raw: '1e3', parsed: undefined },
+      { raw: '1.0', parsed: undefined },
       { raw: '1800', parsed: 1800 },
+      { raw: '+1800', parsed: undefined },
+      { raw: '01800', parsed: undefined },
+      { raw: '1٢', parsed: undefined },
+      { raw: '9'.repeat(400), parsed: undefined },
     ];
     for (const { raw, parsed } of cases) {
       const agentEnv: Record<string, string> = raw === undefined ? {} : { MAKA_CELL_TIMEOUT_SEC: raw };
