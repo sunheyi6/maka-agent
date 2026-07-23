@@ -76,7 +76,7 @@ async function toolNamesSeenByProvider(activeNames: ReadonlySet<string>): Promis
     repairToolCall: async () => null,
   });
   // Drain the stream so streamText materializes the provider call.
-  for await (const _chunk of result.stream) {
+  for await (const _chunk of result.events) {
     void _chunk;
   }
   return seen;

@@ -149,7 +149,7 @@ describe('active current-turn tool-result pruning', () => {
       abortSignal: new AbortController().signal,
       repairToolCall: async () => null,
     });
-    await drain(result.stream);
+    await drain(result.events);
 
     assert.equal(prompts.length, 2, 'expected a tool step and a follow-up step');
     assert.equal(archiveRequests.length, 1);
@@ -471,7 +471,7 @@ describe('active current-turn tool-result pruning', () => {
       abortSignal: new AbortController().signal,
       repairToolCall: async () => null,
     });
-    await drain(result.stream);
+    await drain(result.events);
 
     assert.ok(!toolsPerStep[0]?.includes('RiveWorkflow'), 'step 0 hides the group tool');
     assert.ok(toolsPerStep[1]?.includes('RiveWorkflow'), 'step 1 advertises the loaded group tool');

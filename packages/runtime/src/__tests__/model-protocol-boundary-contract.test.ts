@@ -36,9 +36,29 @@ const ALLOWED_HOMES = new Set([PROTOCOL_HOME, ADAPTER_HOME]);
 const SCAN_ROOTS = ['packages', 'apps'];
 
 // SDK protocol symbols that must not cross the ModelAdapter boundary into
-// runtime/CLI consumers. Re-importing either from `ai` / `@ai-sdk/*` outside
-// the two homes re-opens the leak #1390 closed.
-const PROTOCOL_SYMBOLS = new Set(['ModelMessage', 'JSONValue']);
+// runtime/CLI consumers. Re-importing any of these from `ai` / `@ai-sdk/*`
+// outside the two homes re-opens the leak #1390 / #1381 slice 1 closed.
+// `NormalizedUsage` / `ModelStreamEvent` / `ModelStreamResult` /
+// `ModelFinishReason` / `RawUsageFields` are Maka-owned contracts exported from
+// `model-protocol.ts`; the adapter lowers/normalizes to them. `StreamTextResult`
+// / `AiSdkStreamChunk` are the retired SDK-shaped boundary types the relocation
+// removed — re-introducing them would re-expose raw SDK chunk names to the
+// backend.
+const PROTOCOL_SYMBOLS = new Set([
+  'ModelMessage',
+  'JSONValue',
+  'NormalizedUsage',
+  'RawUsageFields',
+  'ModelStreamEvent',
+  'ModelStreamResult',
+  'ModelFinishReason',
+  // Retired SDK-shaped boundary types (now adapter-internal). Flagging a
+  // re-import keeps the backend from re-learning raw SDK chunk names.
+  'StreamTextResult',
+  'AiSdkStreamChunk',
+  'handleStreamChunk',
+  'ModelAdapterStreamCallbacks',
+]);
 const IMPORT_RE = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"](?:ai|@ai-sdk\/[^'"]+)['"]/g;
 
 async function* walk(dir: string): AsyncGenerator<string> {

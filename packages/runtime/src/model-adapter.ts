@@ -1,17 +1,24 @@
-import type {
-  ErrorEvent,
-  SessionEvent,
-  TextDeltaEvent,
-  ThinkingDeltaEvent,
-  CompleteEvent,
-} from '@maka/core/events';
+import type { ErrorEvent, CompleteEvent } from '@maka/core/events';
 import { providerAuthRequiresSecret, type LlmConnection } from '@maka/core/llm-connections';
 import { lookupModelMetadata } from '@maka/core/model-metadata';
 import { generalizedErrorMessage } from '@maka/core/redaction';
 import type { CacheMissInputSource } from '@maka/core/usage-stats/types';
-import type { ModelMessage } from './model-protocol.js';
+import type {
+  ModelMessage,
+  NormalizedUsage,
+  RawUsageFields,
+  ModelStreamEvent,
+  ModelStreamResult,
+  ModelFinishReason,
+} from './model-protocol.js';
+export type {
+  NormalizedUsage,
+  RawUsageFields,
+  ModelStreamEvent,
+  ModelStreamResult,
+  ModelFinishReason,
+} from './model-protocol.js';
 
-import type { AsyncEventQueue } from './async-queue.js';
 import { resolveModelRuntime } from './model-runtime.js';
 import { classifyError, errorPresentationFromClass } from './provider-error-classification.js';
 import type { ProviderRequestTracker } from './provider-request-telemetry.js';
@@ -135,21 +142,6 @@ export interface ModelAdapterStreamInput {
   providerRequestTracker?: ProviderRequestTracker;
 }
 
-export interface ModelAdapterStreamCallbacks {
-  onText: (text: string) => void;
-  onTextComplete: (text: string) => void;
-  onThinking: (text: string) => void;
-  /**
-   * Provider-signed reasoning signature (Anthropic). Delivered out-of-band from
-   * the thinking text: the provider emits it on a separate reasoning chunk
-   * (empty delta) or on `reasoning-end`, so the caller records it without
-   * disturbing the accumulated thinking text. The final `thinking_complete`
-   * SessionEvent is emitted by the backend's turn-finalization seam (mirroring
-   * `text_complete`), carrying the accumulated text plus this signature.
-   */
-  onThinkingSignature: (signature: string) => void;
-}
-
 interface ProviderMiddlewareStreamInput {
   doStream: () => PromiseLike<{
     stream: ReadableStream<unknown>;
@@ -183,14 +175,14 @@ export class ModelAdapter {
     });
   }
 
-  async startStream(input: ModelAdapterStreamInput): Promise<StreamTextResult> {
+  async startStream(input: ModelAdapterStreamInput): Promise<ModelStreamResult> {
     const ai = await import('ai').catch((err) => {
       throw new Error(
         `Failed to load 'ai' package. Run \`npm install ai\`. Inner: ${(err as Error).message}`,
       );
     });
     const { streamText, isStepCount, isLoopFinished, wrapLanguageModel } = ai as unknown as {
-      streamText: (opts: Record<string, unknown>) => StreamTextResult;
+      streamText: (opts: Record<string, unknown>) => SdkStreamResult;
       isStepCount: (n: number) => unknown;
       isLoopFinished: () => unknown;
       wrapLanguageModel: (input: Record<string, unknown>) => unknown;
@@ -219,7 +211,7 @@ export class ModelAdapter {
           },
         })
       : input.model;
-    return streamText({
+    const sdkResult = streamText({
       model: trackedModel,
       messages: input.messages,
       tools: input.tools,
@@ -236,9 +228,36 @@ export class ModelAdapter {
       // The SDK default onError console.errors the raw error object (stack,
       // request bodies), which lands on the terminal outside the TUI
       // transcript. Stream failures already surface through the stream
-      // `error` chunk → ErrorEvent path, so silence the default.
+      // `error` event → ErrorEvent path, so silence the default.
       onError: () => {},
-    });
+    }) as unknown as SdkStreamResult;
+    return this.toModelStreamResult(sdkResult);
+  }
+
+  /**
+   * Lower an AI SDK `streamText` result into the Maka-owned `ModelStreamResult`.
+   * The raw SDK chunk stream is translated lazily to `ModelStreamEvent`s so
+   * streaming stays live; `usage` / `finishReason` are normalized to Maka-owned
+   * contracts. No AI SDK type escapes this method.
+   */
+  private toModelStreamResult(sdk: SdkStreamResult): ModelStreamResult {
+    const events: AsyncIterable<ModelStreamEvent> = {
+      async *[Symbol.asyncIterator]() {
+        for await (const chunk of sdk.stream as AsyncIterable<AiSdkStreamChunk>) {
+          for (const event of translateChunk(chunk)) yield event;
+        }
+      },
+    };
+    const usage = (async () => {
+      const [sdkUsage, sdkFinishReason] = await Promise.all([
+        sdk.usage.catch(() => undefined),
+        sdk.finishReason.catch(() => undefined),
+      ]);
+      return normalizeAiSdkUsage(sdkUsage, { rawFinishReason: sdkFinishReason });
+    })();
+    const finishReason = (async () =>
+      rawFinishReasonString(await sdk.finishReason.catch(() => undefined)))();
+    return { events, usage, finishReason };
   }
 
   async generateCompactSummary(input: CompactSummaryRequest): Promise<CompactSummaryResult> {
@@ -279,75 +298,15 @@ export class ModelAdapter {
     };
   }
 
-  handleStreamChunk(
-    chunk: AiSdkStreamChunk,
-    turnId: string,
-    assistantMessageId: string,
-    queue: AsyncEventQueue<SessionEvent>,
-    callbacks: ModelAdapterStreamCallbacks,
-  ): void {
-    const ts = this.input.now();
-    switch (chunk.type) {
-      case 'text-delta': {
-        const text = chunk.text ?? chunk.textDelta ?? chunk.delta ?? '';
-        callbacks.onText(text);
-        queue.push({
-          type: 'text_delta',
-          id: this.input.newId(),
-          turnId,
-          ts,
-          messageId: assistantMessageId,
-          text,
-        } satisfies TextDeltaEvent);
-        break;
-      }
-      case 'reasoning':
-      case 'reasoning-delta': {
-        const text = chunk.text ?? chunk.textDelta ?? chunk.delta ?? '';
-        const signature = reasoningSignatureFromChunk(chunk);
-        if (signature) callbacks.onThinkingSignature(signature);
-        // The signed reasoning chunk arrives as a standalone delta with empty
-        // text; only stream a thinking_delta when there is actual text so the
-        // signature carrier does not surface as an empty reasoning fragment.
-        if (text) {
-          callbacks.onThinking(text);
-          queue.push({
-            type: 'thinking_delta',
-            id: this.input.newId(),
-            turnId,
-            ts,
-            messageId: assistantMessageId,
-            text,
-          } satisfies ThinkingDeltaEvent);
-        }
-        break;
-      }
-      case 'reasoning-end': {
-        const signature = reasoningSignatureFromChunk(chunk);
-        if (signature) callbacks.onThinkingSignature(signature);
-        break;
-      }
-      case 'reasoning-start':
-        break;
-      // Step boundaries (`start-step` / `finish-step`) and the terminal
-      // `finish` carry no
-      // text/thinking to stream. The backend owns step accounting: it counts and
-      // flushes one AssistantMessage per step and rotates the messageId at each
-      // `finish-step`. Handling them here would double-count, so they are no-ops.
-      case 'start-step':
-      case 'finish-step':
-      case 'step-finish': // legacy replay fixture compatibility
-      case 'finish':
-        break;
-      case 'tool-call':
-      case 'tool-result':
-        break;
-      case 'error':
-        queue.push(this.makeErrorEvent(turnId, chunk.error));
-        break;
-      default:
-        break;
-    }
+  /**
+   * Translate one raw AI SDK stream chunk into zero or more Maka-owned
+   * `ModelStreamEvent`s. This is the sole place that parses SDK chunk names
+   * (`text-delta` / `reasoning-delta` / `finish-step` / `finish` / `error` / …);
+   * the backend never sees them. Pure and side-effect-free so it is directly
+   * testable through the Maka-owned event contract.
+   */
+  translateChunk(chunk: AiSdkStreamChunk): ModelStreamEvent[] {
+    return translateChunk(chunk);
   }
 
   makeErrorEvent(turnId: string, err: unknown): ErrorEvent {
@@ -425,7 +384,13 @@ export interface ModelAdapterRuntimeEventReplaySupport {
   signedThinking: boolean;
 }
 
-export interface AiSdkStreamChunk {
+/**
+ * Internal, adapter-only shape of an AI SDK `streamText` stream chunk. This
+ * type never crosses the `ModelAdapter` boundary — `ModelAdapter.translateChunk`
+ * consumes it and emits the Maka-owned `ModelStreamEvent`. It mirrors the AI
+ * SDK chunk union just enough to read the fields Maka cares about.
+ */
+interface AiSdkStreamChunk {
   type: string;
   text?: string;
   delta?: string;
@@ -442,6 +407,17 @@ export interface AiSdkStreamChunk {
 }
 
 /**
+ * Internal, adapter-only shape of an AI SDK `streamText` result. The public
+ * boundary contract is `ModelStreamResult`; this exists only to type the
+ * lowering cast inside `ModelAdapter`.
+ */
+interface SdkStreamResult {
+  stream: AsyncIterable<AiSdkStreamChunk>;
+  usage: Promise<AiSdkUsageLike | undefined>;
+  finishReason: Promise<unknown>;
+}
+
+/**
  * Extract the provider-signed reasoning signature from a stream chunk.
  * Anthropic delivers it via `providerMetadata.anthropic.signature`; other
  * providers omit it and this returns undefined.
@@ -455,11 +431,64 @@ function reasoningSignatureFromChunk(chunk: AiSdkStreamChunk): string | undefine
   return typeof signature === 'string' && signature.length > 0 ? signature : undefined;
 }
 
-export interface StreamTextResult {
-  stream: AsyncIterable<AiSdkStreamChunk>;
-  usage: Promise<AiSdkUsageLike | undefined>;
-  finalStep: Promise<{ usage?: AiSdkUsageLike } | undefined>;
-  finishReason: Promise<unknown>;
+/**
+ * Translate one raw AI SDK stream chunk into zero or more Maka-owned
+ * `ModelStreamEvent`s. The sole site that parses SDK chunk names; the backend
+ * never sees raw chunks. Pure and side-effect-free.
+ */
+function translateChunk(chunk: AiSdkStreamChunk): ModelStreamEvent[] {
+  switch (chunk.type) {
+    case 'text-delta': {
+      const text = chunk.text ?? chunk.textDelta ?? chunk.delta ?? '';
+      return text ? [{ kind: 'text', text }] : [];
+    }
+    case 'reasoning':
+    case 'reasoning-delta': {
+      const text = chunk.text ?? chunk.textDelta ?? chunk.delta ?? '';
+      const signature = reasoningSignatureFromChunk(chunk);
+      const events: ModelStreamEvent[] = [];
+      if (signature) events.push({ kind: 'thinking-signature', signature });
+      // The signed reasoning chunk arrives as a standalone delta with empty
+      // text; only emit a `thinking` event when there is actual text so the
+      // signature carrier does not surface as an empty reasoning fragment.
+      if (text) events.push({ kind: 'thinking', text });
+      return events;
+    }
+    case 'reasoning-end': {
+      const signature = reasoningSignatureFromChunk(chunk);
+      return signature ? [{ kind: 'thinking-signature', signature }] : [];
+    }
+    // Step boundaries (`start-step` / `finish-step`) and the terminal `finish`
+    // carry no text/thinking to stream. The backend owns step accounting: it
+    // counts and flushes one AssistantMessage per step and rotates the
+    // messageId at each `finish-step`. `step-finish` is legacy replay fixture
+    // compatibility — handled as a step boundary, not a text carrier.
+    case 'finish-step':
+    case 'step-finish': {
+      const finishReason = rawFinishReasonString(chunk.finishReason);
+      const usage = normalizeAiSdkUsage(chunk.usage, { rawFinishReason: chunk.finishReason });
+      return [
+        {
+          kind: 'step-finish',
+          ...(usage ? { usage } : {}),
+          ...(finishReason ? { finishReason } : {}),
+        },
+      ];
+    }
+    case 'finish': {
+      const finishReason = rawFinishReasonString(chunk.finishReason);
+      return [{ kind: 'finish', ...(finishReason ? { finishReason } : {}) }];
+    }
+    case 'reasoning-start':
+    case 'start-step':
+    case 'tool-call':
+    case 'tool-result':
+      return [];
+    case 'error':
+      return [{ kind: 'error', error: chunk.error }];
+    default:
+      return [];
+  }
 }
 
 type TokenCountBreakdown = {
@@ -471,19 +500,12 @@ type TokenCountBreakdown = {
   reasoning?: number;
 };
 
-export interface AiSdkRawUsageFields {
-  prompt_tokens?: number;
-  completion_tokens?: number;
-  total_tokens?: number;
-  prompt_cache_hit_tokens?: number;
-  prompt_cache_miss_tokens?: number;
-  prompt_tokens_details?: {
-    cached_tokens?: number;
-  };
-  completion_tokens_details?: {
-    reasoning_tokens?: number;
-  };
-}
+/**
+ * Internal, adapter-only mirror of the AI SDK raw usage fields. The public
+ * `RawUsageFields` contract lives in `model-protocol.ts`; this stays here as
+ * the lowering input shape and is assigned to `NormalizedUsage.raw`.
+ */
+export type AiSdkRawUsageFields = RawUsageFields;
 
 export interface AiSdkUsageLike {
   promptTokens?: number;
@@ -524,25 +546,17 @@ export interface AiSdkUsageLike {
   raw?: AiSdkRawUsageFields;
 }
 
-export interface NormalizedAiSdkUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheHitInputTokens: number;
-  cacheMissInputTokens: number;
-  cacheMissInputSource: CacheMissInputSource;
-  cacheWriteInputTokens: number;
-  reasoningTokens: number;
-  totalTokens: number;
-  rawFinishReason?: string;
-  raw?: AiSdkRawUsageFields;
-  /** Backward-compatible alias for cacheHitInputTokens. */
-  cachedInputTokens: number;
-}
+/**
+ * @deprecated alias for the Maka-owned `NormalizedUsage` contract exported
+ * from `model-protocol.ts`. Kept for backward compatibility with existing
+ * internal import sites during the slice-1 transition.
+ */
+export type NormalizedAiSdkUsage = NormalizedUsage;
 
 export function normalizeAiSdkUsage(
   usage: AiSdkUsageLike | undefined,
   options: { rawFinishReason?: unknown } = {},
-): NormalizedAiSdkUsage | undefined {
+): NormalizedUsage | undefined {
   if (!usage) return undefined;
   const reportedInputTokens =
     finiteTokenFromValueOrBreakdown(usage.inputTokens, 'total') ??

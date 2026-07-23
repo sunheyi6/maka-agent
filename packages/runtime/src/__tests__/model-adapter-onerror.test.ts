@@ -44,7 +44,7 @@ describe('ModelAdapter.startStream onError', () => {
         abortSignal: new AbortController().signal,
         repairToolCall: async () => null,
       });
-      for await (const chunk of result.stream) {
+      for await (const chunk of result.events) {
         if ((chunk as { type?: unknown }).type === 'error') break;
       }
       // Let any post-chunk callback settle before asserting.

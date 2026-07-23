@@ -100,7 +100,7 @@ describe('prepareStep activates a group within the same turn (Codex Δ1)', () =>
       abortSignal: new AbortController().signal,
       repairToolCall: async () => null,
     });
-    for await (const _chunk of result.stream) {
+    for await (const _chunk of result.events) {
       void _chunk;
     }
 
