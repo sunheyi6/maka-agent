@@ -8,12 +8,10 @@
  * (re-exported from `./model-protocol.js`) instead of from `ai`; this test
  * keeps that property cheap and enforceable as the codebase evolves.
  *
- * The two allowed homes are:
- *   - `packages/runtime/src/model-protocol.ts` — the type seam (the only place
- *     that may import the SDK message/value types).
- *   - `packages/runtime/src/model-adapter.ts` — the value/implementation
- *     boundary (dynamic `import('ai')` for `streamText` / `generateText` lives
- *     here; protocol lowering/normalization is owned here).
+ * The only allowed home is `packages/runtime/src/model-adapter.ts`, the
+ * value/implementation boundary where request lowering and response
+ * normalization live. `model-protocol.ts` owns independent Maka contracts and
+ * must not import the SDK at all.
  *
  * Schema helpers (`jsonSchema` / `zodSchema`), `RetryError`, and
  * `generateText` / `LanguageModel` value imports are deliberately out of scope
@@ -27,8 +25,9 @@ import { describe, it } from 'node:test';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 const PROTOCOL_HOME = resolve(REPO_ROOT, 'packages/runtime/src/model-protocol.ts');
+const PROTOCOL_DECLARATION = resolve(REPO_ROOT, 'packages/runtime/dist/model-protocol.d.ts');
 const ADAPTER_HOME = resolve(REPO_ROOT, 'packages/runtime/src/model-adapter.ts');
-const ALLOWED_HOMES = new Set([PROTOCOL_HOME, ADAPTER_HOME]);
+const ALLOWED_HOMES = new Set([ADAPTER_HOME]);
 
 // Scan every TypeScript source tree under the monorepo; `walk` prunes tests,
 // build output, deps, worktrees, and Playwright e2e (mirrors the containment
@@ -37,7 +36,7 @@ const SCAN_ROOTS = ['packages', 'apps'];
 
 // SDK protocol symbols that must not cross the ModelAdapter boundary into
 // runtime/CLI consumers. Re-importing any of these from `ai` / `@ai-sdk/*`
-// outside the two homes re-opens the leak #1390 / #1381 slice 1 closed.
+// outside the adapter re-opens the leak #1390 / #1381 slice 1 closed.
 // `NormalizedUsage` / `ModelStreamEvent` / `ModelStreamResult` /
 // `ModelFinishReason` / `RawUsageFields` are Maka-owned contracts exported from
 // `model-protocol.ts`; the adapter lowers/normalizes to them. `StreamTextResult`
@@ -60,6 +59,7 @@ const PROTOCOL_SYMBOLS = new Set([
   'ModelAdapterStreamCallbacks',
 ]);
 const IMPORT_RE = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"](?:ai|@ai-sdk\/[^'"]+)['"]/g;
+const SDK_DEPENDENCY_RE = /(?:from\s*|import\s*\(\s*)['"](?:ai|@ai-sdk\/[^'"]+)['"]/;
 
 async function* walk(dir: string): AsyncGenerator<string> {
   let entries;
@@ -90,10 +90,32 @@ function importedProtocolSymbols(fileText: string): string[] {
 }
 
 describe('model-protocol boundary contract', () => {
+  it('does not exempt the Maka-owned protocol seam from SDK import checks', () => {
+    assert.equal(
+      ALLOWED_HOMES.has(PROTOCOL_HOME),
+      false,
+      'model-protocol.ts must remain independent from ai and @ai-sdk/*',
+    );
+  });
+
   it('the protocol seam home exists and exports ModelMessage and JSONValue', async () => {
     const home = await readFile(PROTOCOL_HOME, 'utf8');
     assert.match(home, /export type ModelMessage\b/, 'model-protocol.ts must export ModelMessage');
     assert.match(home, /export type JSONValue\b/, 'model-protocol.ts must export JSONValue');
+    assert.doesNotMatch(
+      home,
+      SDK_DEPENDENCY_RE,
+      'model-protocol.ts must not import ai or @ai-sdk/*',
+    );
+  });
+
+  it('emits a declaration with no AI SDK dependency', async () => {
+    const declaration = await readFile(PROTOCOL_DECLARATION, 'utf8');
+    assert.doesNotMatch(
+      declaration,
+      SDK_DEPENDENCY_RE,
+      'model-protocol.d.ts must not import ai or @ai-sdk/*',
+    );
   });
 
   it('no source outside the adapter boundary imports ModelMessage/JSONValue from ai or @ai-sdk/*', async () => {
@@ -114,7 +136,7 @@ describe('model-protocol boundary contract', () => {
       offenders,
       [],
       'ModelMessage/JSONValue must be imported from @maka/runtime (or ./model-protocol.js), not from ai. ' +
-        'Re-introducing a direct SDK protocol import outside model-protocol.ts/model-adapter.ts re-opens the #1381 slice-1 leak.',
+        'Re-introducing a direct SDK protocol import outside model-adapter.ts re-opens the #1381 slice-1 leak.',
     );
   });
 });
