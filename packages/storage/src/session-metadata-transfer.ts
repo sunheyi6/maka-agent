@@ -34,6 +34,7 @@ export async function importLegacySessionMetadataTree(input: {
   const sessionsRoot = join(input.workspaceRoot, 'sessions');
   const entries: SessionMetadataImportEntry[] = [];
   const transcriptMarkerSessionIds: string[] = [];
+  const tombstoneSessionIds: string[] = [];
   const directories = await sessionDirectoryNames(sessionsRoot);
   for (const directory of directories) {
     const sourcePath = join(sessionsRoot, directory, 'session.jsonl');
@@ -54,14 +55,16 @@ export async function importLegacySessionMetadataTree(input: {
       }
       // Corrupt or malformed legacy session headers should not crash the
       // entire import. Skip the session if it already exists in the SQLite
-      // metadata store; otherwise tombstone it so it is not retried on
-      // every subsequent launch.
+      // metadata store; otherwise defer a tombstone so it is not retried on
+      // every subsequent launch.  Tombstones are applied only after the
+      // full scan and import succeed, so a later failure rolls them back
+      // implicitly (the malformed session will be retried next launch).
       if (isMalformedLegacySessionHeader(error)) {
         const canonicalStateExists =
           (await input.destination.has(directory)) ||
           (await input.destination.isTombstoned(directory));
         if (canonicalStateExists) continue;
-        await input.destination.remove(directory);
+        tombstoneSessionIds.push(directory);
         continue;
       }
       throw error;
@@ -76,6 +79,11 @@ export async function importLegacySessionMetadataTree(input: {
     }
   }
   const result = await input.destination.importEntries(entries);
+  // Apply deferred tombstones only after the import succeeds so a scan or
+  // import failure does not permanently suppress repairable sessions.
+  for (const sessionId of tombstoneSessionIds) {
+    await input.destination.remove(sessionId);
+  }
   const headersImported = result.created.filter(Boolean).length;
   return {
     filesScanned: directories.length,
@@ -91,10 +99,11 @@ export async function readLegacySessionMetadataEntry(
   sourcePath: string,
   sessionId: string,
 ): Promise<SessionMetadataImportEntry | null> {
+  // File I/O errors (EACCES, EIO, etc.) propagate without wrapping so they
+  // are not mistaken for corrupt data by isMalformedLegacySessionHeader().
+  const headerLine = await readFirstJsonlRecord(sourcePath);
   let value: unknown;
-  let headerLine: string;
   try {
-    headerLine = await readFirstJsonlRecord(sourcePath);
     value = JSON.parse(headerLine) as unknown;
     if (isSessionTranscriptMarker(value)) {
       decodeSessionTranscriptMarker(value, sessionId);
@@ -124,10 +133,12 @@ function isNotFound(error: unknown): boolean {
 /**
  * Detects errors caused by a corrupt or malformed legacy session header.
  *
- * `readLegacySessionMetadataEntry` wraps any decode/parse failure as
- * `"Invalid legacy session header at <path>"` with the original error as
- * `cause`.  We walk the cause chain looking for the signature messages
- * produced by `decodeSessionHeader` / `normalizeSessionHeader`.
+ * `readLegacySessionMetadataEntry` wraps only parse/decode failures
+ * (JSON.parse, decodeSessionHeader, decodeSessionTranscriptMarker) as
+ * `"Invalid legacy session header at <path>"` with the original error
+ * as `cause`.  Filesystem I/O errors (EACCES, EIO, etc.) propagate without
+ * wrapping and are NOT matched here, so transient failures are not treated
+ * as corrupt data.
  */
 function isMalformedLegacySessionHeader(error: unknown): boolean {
   let current = error;

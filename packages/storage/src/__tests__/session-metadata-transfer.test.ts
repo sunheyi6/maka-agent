@@ -164,6 +164,81 @@ describe('legacy session metadata transfer', () => {
     }
   });
 
+  test('does not tombstone a session when a non-ENOENT filesystem error occurs', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'maka-session-transfer-fs-error-'));
+    const legacy = createSessionStore(root);
+    const sqlite = createSqliteSessionMetadataStore(join(root, 'state.sqlite'));
+    try {
+      const valid = await legacy.create(makeInput({ name: 'Valid' }));
+      const unreadable = await legacy.create(makeInput({ name: 'Unreadable' }));
+      const unreadablePath = join(root, 'sessions', unreadable.id, 'session.jsonl');
+      // Replace the session file with a directory to provoke a non-ENOENT
+      // filesystem error (EISDIR) when readFirstJsonlRecord tries to open it.
+      await rm(unreadablePath);
+      await mkdir(unreadablePath);
+
+      await assert.rejects(
+        importLegacySessionMetadataTree({ workspaceRoot: root, destination: sqlite }),
+      );
+      // The session must NOT be tombstoned — a filesystem error is not corrupt data.
+      assert.equal(await sqlite.isTombstoned(unreadable.id), false);
+      // The valid session was not imported because the scan aborted.
+      assert.equal(await sqlite.has(valid.id), false);
+    } finally {
+      sqlite.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test('does not tombstone a malformed header when a later scan step fails', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'maka-session-transfer-rollback-'));
+    const legacy = createSessionStore(root);
+    const sqlite = createSqliteSessionMetadataStore(join(root, 'state.sqlite'));
+    try {
+      const valid = await legacy.create(makeInput({ name: 'Valid' }));
+      const invalid = await legacy.create(makeInput({ name: 'Invalid' }));
+      // Corrupt the invalid session's header.
+      const invalidPath = join(root, 'sessions', invalid.id, 'session.jsonl');
+      const lines = (await readFile(invalidPath, 'utf8')).split('\n');
+      lines[0] = JSON.stringify({ ...JSON.parse(lines[0]!), labels: 'not-an-array' });
+      await writeFile(invalidPath, lines.join('\n'), 'utf8');
+      // Create an orphan transcript-marker directory with no SQLite metadata.
+      // The scan will collect the malformed tombstone, but the transcript
+      // marker check fails before the import, so the tombstone must not be
+      // committed.
+      const orphanId = 'orphan-transcript-session';
+      const orphanDir = join(root, 'sessions', orphanId);
+      await mkdir(orphanDir, { recursive: true });
+      const orphanPath = join(orphanDir, 'session.jsonl');
+      await writeFile(
+        orphanPath,
+        `${JSON.stringify({ type: 'session_transcript', sessionId: orphanId, schemaVersion: 1 })}\n`,
+        'utf8',
+      );
+
+      await assert.rejects(
+        importLegacySessionMetadataTree({ workspaceRoot: root, destination: sqlite }),
+        /transcript marker has no SQLite metadata/,
+      );
+      // The malformed session must NOT be tombstoned because the scan failed.
+      assert.equal(await sqlite.isTombstoned(invalid.id), false);
+      // The valid session was not imported either.
+      assert.equal(await sqlite.has(valid.id), false);
+      // Re-running with the orphan removed should now succeed and tombstone.
+      await rm(orphanDir, { recursive: true, force: true });
+      const report = await importLegacySessionMetadataTree({
+        workspaceRoot: root,
+        destination: sqlite,
+      });
+      assert.equal(report.headersImported, 1);
+      assert.equal(await sqlite.read(valid.id).then((r) => r.header.name), 'Valid');
+      assert.equal(await sqlite.isTombstoned(invalid.id), true);
+    } finally {
+      sqlite.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test('keeps canonical metadata readable when its optional transcript is missing', async () => {
     const root = await mkdtemp(join(tmpdir(), 'maka-session-transfer-missing-transcript-'));
     const legacy = createSessionStore(root);
