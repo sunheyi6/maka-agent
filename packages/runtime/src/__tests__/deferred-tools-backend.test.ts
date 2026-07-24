@@ -16,7 +16,11 @@ import {
   type ToolAvailabilityConfig,
 } from '../tool-availability.js';
 import { toolSchemaCharsForDiagnostics } from '../request-shape.js';
-import { LOCAL_READ_AGENT_ID, LOCAL_READ_AGENT_PROFILE } from '../agent-catalog.js';
+import {
+  LOCAL_READ_AGENT_ID,
+  LOCAL_READ_AGENT_PROFILE,
+  requireBuiltinAgentDefinitionByProfile,
+} from '../agent-catalog.js';
 import { AGENT_SWARM_TOOL_NAME } from '../agent-swarm-tools.js';
 import {
   AGENT_LIST_TOOL_NAME,
@@ -117,12 +121,14 @@ function agentBackend(
     modelFactory: () => model,
     tools: buildParentAgentTools(),
     ...(resolved ? { toolAvailability: resolved } : {}),
-    spawnChildAgent: async (input) => {
+    spawnChildSession: async (input) => {
       const childIndex = spawnCalls.length;
       spawnCalls.push(input);
+      const definition = requireBuiltinAgentDefinitionByProfile(input.agentProfile);
       return {
-        agentId: input.spec.id,
-        agentName: input.spec.name,
+        childSessionId: `child-session-${childIndex}`,
+        agentId: definition.id,
+        agentName: definition.name,
         runId: `child-run-${childIndex}`,
         turnId: `child-turn-${childIndex}`,
         status: 'completed',
@@ -357,6 +363,8 @@ describe('AiSdkBackend deferred agent tools', () => {
 
     assert.ok(capturedTools[0]?.includes(AGENT_SWARM_TOOL_NAME));
     assert.match(capturedPrompts[0] ?? '', /Orchestration Mode: Swarm/);
+    assert.match(capturedPrompts[0] ?? '', /preferred default execution strategy/);
+    assert.match(capturedPrompts[0] ?? '', /You may continue directly/);
     assert.match(capturedPrompts[0] ?? '', /only tool in its assistant step/);
   });
 
@@ -459,16 +467,9 @@ describe('AiSdkBackend deferred agent tools', () => {
     );
     assert.deepEqual(spawnCalls[0], {
       parentRunId: 'parent-run',
-      spec: {
-        id: LOCAL_READ_AGENT_ID,
-        name: 'Local Read',
-        systemPrompt: [
-          'You are a foreground local-read child agent.',
-          'Use only the provided Read, Glob, and Grep tools.',
-          'Do not use shell, web, browser, write, or nested agent tools.',
-          'Return a concise answer with concrete file or symbol evidence.',
-        ].join('\n'),
-      },
+      parentTurnId: 'turn-1',
+      toolCallId: 'tc-spawn',
+      agentProfile: LOCAL_READ_AGENT_PROFILE,
       prompt: 'Inspect the runtime tests.',
       abortSignal: assertAbortSignal(spawnCalls[0]),
       onEvent: assertOnEvent(spawnCalls[0]),

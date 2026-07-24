@@ -32,10 +32,12 @@ export type {
   RetryChildAgentInput,
   AgentListItem,
   AgentListResult,
+  SubagentExecutionListItem,
   AgentOutputInput,
   AgentOutputResult,
   StopSessionInput,
 } from './session-manager.js';
+export type { SubagentExecutionRef } from './subagent-execution.js';
 
 export { PermissionEngine, createDefaultPermissionEngineDeps } from './permission-engine.js';
 export type { EvaluateResult, EvaluateInput, PermissionEngineDeps } from './permission-engine.js';
@@ -193,6 +195,23 @@ export type {
   MakaTool as BuiltinMakaTool,
   MakaToolContext as BuiltinMakaToolContext,
 } from './builtin-tools.js';
+export {
+  buildToolResultArchiveResourceRef,
+  parseToolResultArchiveResourceRef,
+  readToolResultArchiveResource,
+  TOOL_RESULT_ARCHIVE_DEFAULT_LIMIT,
+  TOOL_RESULT_ARCHIVE_MAX_BYTES,
+  TOOL_RESULT_ARCHIVE_MAX_LIMIT,
+  TOOL_RESULT_ARCHIVE_MAX_RESPONSE_CHARS,
+  TOOL_RESULT_ARCHIVE_READ_INSTRUCTIONS,
+} from './tool-result-archive-resource.js';
+export type {
+  ToolResultArchiveResourceIdentity,
+  ToolResultArchiveResourceOperation,
+  ToolResultArchiveResourceReader,
+  ToolResultArchiveResourceReadInput,
+  ToolResultArchiveResourceRequest,
+} from './tool-result-archive-resource.js';
 export { buildComputerUseTools, adaptToCuAction } from './computer-use-tools.js';
 export {
   convertOpenAIComputerAction,
@@ -1345,11 +1364,15 @@ export type {
   InvocableSkillEntry,
   PreparedSkillInvocationMessage,
   SkillInvocationFailure,
-  SkillInvocationFailureReason,
   SkillInvocationResolution,
   SkillInvocationResult,
   SkillInvocationToken,
 } from './skill-invocation.js';
+export type {
+  SkillInvocationFailureReason,
+  SkillInvocationMode,
+  SkillInvocationReceipt,
+} from './skill-invocation-receipt.js';
 export {
   isPathInside,
   isSafeSkillId,
@@ -1368,6 +1391,7 @@ export type {
   SkillMetadataValidationResult,
   SkillScanDiagnostic,
   SkillScanResult,
+  SkillDiscoveryDiagnostic,
   RejectedSkillDefinition,
   RuntimeSkillDefinition,
   ScannedSkill,

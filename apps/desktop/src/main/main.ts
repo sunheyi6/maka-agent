@@ -27,7 +27,7 @@ import { GitHubCopilotSubscriptionService } from './oauth/github-copilot-subscri
 import { CursorSubscriptionService } from './oauth/cursor-subscription-service.js';
 import { AntigravitySubscriptionService } from './oauth/antigravity-subscription-service.js';
 import type { WorkspacePrivacyContext } from '@maka/core/incognito';
-import { ok } from '@maka/core/settings/result';
+import { ok } from '@maka/core/result';
 import {
   BackendRegistry,
   FakeBackend,
@@ -579,6 +579,7 @@ const {
   snapshotReadImage,
   persistArchivedToolResult,
   readArchivedToolResult,
+  readArchivedToolResultResource,
 } = createToolArtifactPersistence({ artifactStore, storeReadImage, safeSendToRenderer });
 
 const {
@@ -605,6 +606,7 @@ const {
   settingsStore,
   shellRuns,
   snapshotReadImage,
+  readArchivedToolResultResource,
   getWorkspacePrivacyContext,
   resolveDesktopSkillHost,
 });
@@ -719,6 +721,8 @@ backends.register('ai-sdk', createAiSdkBackendFactory({
   runtimeCommitStore: runtimePersistence.runtimeCommitStore,
   planStore,
   safeSendToRenderer,
+  openGateway,
+  emitSessionsChanged,
   getRuntime: () => runtime,
   getLookupPricing: () => lookupPricing,
 }));
