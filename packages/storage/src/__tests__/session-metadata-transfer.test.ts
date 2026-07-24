@@ -128,7 +128,7 @@ describe('legacy session metadata transfer', () => {
     }
   });
 
-  test('skips a malformed header and tombstones it while importing valid sessions', async () => {
+  test('skips a malformed header without tombstoning it while importing valid sessions', async () => {
     const root = await mkdtemp(join(tmpdir(), 'maka-session-transfer-invalid-'));
     const legacy = createSessionStore(root);
     const sqlite = createSqliteSessionMetadataStore(join(root, 'state.sqlite'));
@@ -148,16 +148,28 @@ describe('legacy session metadata transfer', () => {
       assert.equal(report.headersImported, 1);
       // The valid session was imported.
       assert.equal((await sqlite.read(valid.id)).header.name, 'Valid');
-      // The malformed session was tombstoned, not imported.
+      // The malformed session was skipped, not imported and not tombstoned.
       assert.equal(await sqlite.has(invalid.id), false);
-      assert.equal(await sqlite.isTombstoned(invalid.id), true);
-      // Re-importing should not retry the tombstoned session.
+      assert.equal(await sqlite.isTombstoned(invalid.id), false);
+      // Re-importing should skip the malformed session again (not tombstoned).
       const repeated = await importLegacySessionMetadataTree({
         workspaceRoot: root,
         destination: sqlite,
       });
       assert.equal(repeated.filesScanned, 2);
       assert.equal(repeated.headersImported, 0);
+      // Repairing the header should allow it to be imported on the next run.
+      const repairedLines = (await readFile(invalidPath, 'utf8')).split('\n');
+      const repairedHeader = JSON.parse(repairedLines[0]!);
+      repairedHeader.labels = ['repaired'];
+      repairedLines[0] = JSON.stringify(repairedHeader);
+      await writeFile(invalidPath, repairedLines.join('\n'), 'utf8');
+      const repaired = await importLegacySessionMetadataTree({
+        workspaceRoot: root,
+        destination: sqlite,
+      });
+      assert.equal(repaired.headersImported, 1);
+      assert.equal((await sqlite.read(invalid.id)).header.name, 'Invalid');
     } finally {
       sqlite.close();
       await rm(root, { recursive: true, force: true });
@@ -190,7 +202,7 @@ describe('legacy session metadata transfer', () => {
     }
   });
 
-  test('does not tombstone a malformed header when a later scan step fails', async () => {
+  test('skips a malformed header without tombstoning when a later scan step fails', async () => {
     const root = await mkdtemp(join(tmpdir(), 'maka-session-transfer-rollback-'));
     const legacy = createSessionStore(root);
     const sqlite = createSqliteSessionMetadataStore(join(root, 'state.sqlite'));
@@ -203,9 +215,8 @@ describe('legacy session metadata transfer', () => {
       lines[0] = JSON.stringify({ ...JSON.parse(lines[0]!), labels: 'not-an-array' });
       await writeFile(invalidPath, lines.join('\n'), 'utf8');
       // Create an orphan transcript-marker directory with no SQLite metadata.
-      // The scan will collect the malformed tombstone, but the transcript
-      // marker check fails before the import, so the tombstone must not be
-      // committed.
+      // The scan will skip the malformed header, but the transcript marker
+      // check fails before the import, so no writes should occur.
       const orphanId = 'orphan-transcript-session';
       const orphanDir = join(root, 'sessions', orphanId);
       await mkdir(orphanDir, { recursive: true });
@@ -220,11 +231,12 @@ describe('legacy session metadata transfer', () => {
         importLegacySessionMetadataTree({ workspaceRoot: root, destination: sqlite }),
         /transcript marker has no SQLite metadata/,
       );
-      // The malformed session must NOT be tombstoned because the scan failed.
+      // The malformed session must NOT be tombstoned (skipped, not quarantined).
       assert.equal(await sqlite.isTombstoned(invalid.id), false);
-      // The valid session was not imported either.
+      // The valid session was not imported either (scan aborted).
       assert.equal(await sqlite.has(valid.id), false);
-      // Re-running with the orphan removed should now succeed and tombstone.
+      // Re-running with the orphan removed should import the valid session
+      // and skip (not tombstone) the malformed one.
       await rm(orphanDir, { recursive: true, force: true });
       const report = await importLegacySessionMetadataTree({
         workspaceRoot: root,
@@ -232,7 +244,7 @@ describe('legacy session metadata transfer', () => {
       });
       assert.equal(report.headersImported, 1);
       assert.equal(await sqlite.read(valid.id).then((r) => r.header.name), 'Valid');
-      assert.equal(await sqlite.isTombstoned(invalid.id), true);
+      assert.equal(await sqlite.isTombstoned(invalid.id), false);
     } finally {
       sqlite.close();
       await rm(root, { recursive: true, force: true });

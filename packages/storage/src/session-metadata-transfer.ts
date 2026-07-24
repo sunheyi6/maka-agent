@@ -24,8 +24,9 @@ export interface LegacySessionMetadataImportReport {
  * Import every legacy line-1 SessionHeader in one SQLite transaction.
  *
  * The scan and decode phase completes before the transaction begins.
- * Malformed headers are skipped (and tombstoned when no canonical metadata
- * exists yet) so one corrupt session cannot block the rest of the catalog.
+ * Malformed headers are skipped (not tombstoned) so one corrupt session
+ * cannot block the rest of the catalog.  Skipping without tombstoning means
+ * a repaired header will be picked up on the next launch.
  */
 export async function importLegacySessionMetadataTree(input: {
   workspaceRoot: string;
@@ -34,7 +35,6 @@ export async function importLegacySessionMetadataTree(input: {
   const sessionsRoot = join(input.workspaceRoot, 'sessions');
   const entries: SessionMetadataImportEntry[] = [];
   const transcriptMarkerSessionIds: string[] = [];
-  const tombstoneSessionIds: string[] = [];
   const directories = await sessionDirectoryNames(sessionsRoot);
   for (const directory of directories) {
     const sourcePath = join(sessionsRoot, directory, 'session.jsonl');
@@ -54,17 +54,12 @@ export async function importLegacySessionMetadataTree(input: {
         throw error;
       }
       // Corrupt or malformed legacy session headers should not crash the
-      // entire import. Skip the session if it already exists in the SQLite
-      // metadata store; otherwise defer a tombstone so it is not retried on
-      // every subsequent launch.  Tombstones are applied only after the
-      // full scan and import succeed, so a later failure rolls them back
-      // implicitly (the malformed session will be retried next launch).
+      // entire import. Skip the session without tombstoning it — the
+      // deletion tombstone is permanent and would suppress a repaired
+      // header on subsequent launches. Skipping means the malformed
+      // session is retried next launch, which is harmless (it will be
+      // skipped again until repaired).
       if (isMalformedLegacySessionHeader(error)) {
-        const canonicalStateExists =
-          (await input.destination.has(directory)) ||
-          (await input.destination.isTombstoned(directory));
-        if (canonicalStateExists) continue;
-        tombstoneSessionIds.push(directory);
         continue;
       }
       throw error;
@@ -79,11 +74,6 @@ export async function importLegacySessionMetadataTree(input: {
     }
   }
   const result = await input.destination.importEntries(entries);
-  // Apply deferred tombstones only after the import succeeds so a scan or
-  // import failure does not permanently suppress repairable sessions.
-  for (const sessionId of tombstoneSessionIds) {
-    await input.destination.remove(sessionId);
-  }
   const headersImported = result.created.filter(Boolean).length;
   return {
     filesScanned: directories.length,

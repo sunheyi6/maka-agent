@@ -257,7 +257,9 @@ describe('default SQLite session metadata store', () => {
     try {
       assert.equal((await metadata.read(valid.id)).header.name, 'Valid');
       assert.equal(await metadata.has(invalid.id), false);
-      assert.equal(await metadata.isTombstoned(invalid.id), true);
+      // Malformed legacy headers are skipped, not tombstoned, so a repaired
+      // header can be imported on the next startup.
+      assert.equal(await metadata.isTombstoned(invalid.id), false);
     } finally {
       metadata.close();
       await rm(root, { recursive: true, force: true });
