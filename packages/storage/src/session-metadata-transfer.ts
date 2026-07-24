@@ -23,8 +23,9 @@ export interface LegacySessionMetadataImportReport {
 /**
  * Import every legacy line-1 SessionHeader in one SQLite transaction.
  *
- * The scan and decode phase completes before the transaction begins, so a
- * malformed header cannot leave a partially imported session catalog.
+ * The scan and decode phase completes before the transaction begins.
+ * Malformed headers are skipped (and tombstoned when no canonical metadata
+ * exists yet) so one corrupt session cannot block the rest of the catalog.
  */
 export async function importLegacySessionMetadataTree(input: {
   workspaceRoot: string;

@@ -228,7 +228,7 @@ describe('default SQLite session metadata store', () => {
     }
   });
 
-  test('fails the whole startup migration before exposing a partial catalog', async () => {
+  test('skips a malformed header during startup migration while importing valid sessions', async () => {
     const root = await mkdtemp(join(tmpdir(), 'maka-default-session-invalid-'));
     const legacy = createLegacyFileSessionStore(root);
     const valid = await legacy.create(makeInput({ name: 'Valid' }));
@@ -240,7 +240,13 @@ describe('default SQLite session metadata store', () => {
 
     const store = createSessionStore(root);
     try {
-      await assert.rejects(() => store.list(), /Invalid legacy session header/);
+      // Startup import must not fail closed: valid sessions stay available.
+      assert.deepEqual(
+        (await store.list()).map((item) => item.id),
+        [valid.id],
+      );
+      assert.equal((await store.readHeader(valid.id)).name, 'Valid');
+      await assert.rejects(() => store.readHeader(invalid.id), /not found/);
     } finally {
       await store.close?.();
     }
@@ -249,8 +255,9 @@ describe('default SQLite session metadata store', () => {
       join(root, SQLITE_SESSION_METADATA_DATABASE_NAME),
     );
     try {
-      await assert.rejects(() => metadata.read(valid.id), /not found/);
-      assert.deepEqual(await metadata.list(), []);
+      assert.equal((await metadata.read(valid.id)).header.name, 'Valid');
+      assert.equal(await metadata.has(invalid.id), false);
+      assert.equal(await metadata.isTombstoned(invalid.id), true);
     } finally {
       metadata.close();
       await rm(root, { recursive: true, force: true });
