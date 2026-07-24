@@ -51,4 +51,26 @@ describe('ProcessingBlock disclosure wiring (#1307)', () => {
     assert.match(markup, /data-processing="block"/);
     assert.doesNotMatch(markup, /data-trow="group"/);
   });
+
+  it('keeps the collapsed block icon aligned with the first summarized tool kind', () => {
+    const commandFirst = renderToStaticMarkup(createElement(TurnView, {
+      turn: turnWithTools([
+        { toolUseId: 'b1', toolName: 'Bash', activityKind: 'command', status: 'completed', args: {} },
+        { toolUseId: 'r1', toolName: 'Read', activityKind: 'read', status: 'completed', args: {} },
+      ]),
+    }));
+    assert.match(commandFirst, /lucide-terminal/);
+    assert.match(commandFirst, /运行 1 条命令，读取 1 个文件/);
+    assert.doesNotMatch(commandFirst, /lucide-file-text|lucide-cpu/);
+
+    const readFirst = renderToStaticMarkup(createElement(TurnView, {
+      turn: turnWithTools([
+        { toolUseId: 'r1', toolName: 'Read', activityKind: 'read', status: 'completed', args: {} },
+        { toolUseId: 'b1', toolName: 'Bash', activityKind: 'command', status: 'completed', args: {} },
+      ]),
+    }));
+    assert.match(readFirst, /lucide-file-text/);
+    assert.match(readFirst, /读取 1 个文件，运行 1 条命令/);
+    assert.doesNotMatch(readFirst, /lucide-terminal|lucide-cpu/);
+  });
 });
