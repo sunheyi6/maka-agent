@@ -192,6 +192,26 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The record-file row is the one non-list line the panel carries: label,
+   path, copy button. The path must truncate, so the row flexes and the text
+   alone gets the ellipsis — the label and the button keep their size. */
+.maka-inspector-record-file-row {
+  min-width: 0;
+}
+
+.maka-inspector-record-file-label {
+  flex-shrink: 0;
+}
+
+.maka-inspector-record-file {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
 .maka-session-workbar .maka-browser-panel,
 .maka-session-workbar .maka-artifact-pane {
   width: 100%;

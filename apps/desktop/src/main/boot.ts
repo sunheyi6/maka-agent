@@ -77,6 +77,7 @@ import {
   createMcpConfigStore,
   createSqliteModelCallLedger,
   createSqliteTelemetryRepo,
+  OPERATIONAL_STATE_DATABASE_NAME,
   resetIncompatibleOperationalStateDatabase,
 } from '@maka/storage';
 import { createAgentGraphControlStore } from '@maka/storage/agent-graph-control-store';
@@ -1291,6 +1292,7 @@ function registerIpc(): void {
     readSessionRuntimeEvents: (sessionId) => runtimeEventStore.readSessionRuntimeEvents(sessionId),
     listSessionRuns: (sessionId) => runStore.listSessionRuns(sessionId),
     readRunEvents: (sessionId, runId) => runStore.readEvents(sessionId, runId),
+    traceRecordFilePath: join(workspaceRoot, OPERATIONAL_STATE_DATABASE_NAME),
   });
   registerUsageIpc({
     ipcMain,

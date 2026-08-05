@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@astryxdesign/core/Badge';
 import { Banner } from '@astryxdesign/core/Banner';
 import { Button } from '@astryxdesign/core/Button';
@@ -9,8 +9,8 @@ import { Section } from '@astryxdesign/core/Section';
 import { Switch } from '@astryxdesign/core/Switch';
 import { Text } from '@astryxdesign/core/Text';
 import { TextInput } from '@astryxdesign/core/TextInput';
-import { useUiLocale } from '@maka/ui';
-import { Activity } from '@maka/ui/icons';
+import { useToast, useUiLocale } from '@maka/ui';
+import { Activity, Copy } from '@maka/ui/icons';
 import { getDesktopConversationCopy } from './locales/conversation-copy.js';
 import {
   applyInspectorFilter,
@@ -36,6 +36,7 @@ import { useSessionTrace } from './use-session-trace.js';
 export function SessionInspectorPanel(props: { sessionId: string; active: boolean }) {
   const locale = useUiLocale();
   const copy = getDesktopConversationCopy(locale).inspector;
+  const toast = useToast();
   const snapshot = useSessionTrace(props.sessionId, props.active, {
     loadFailed: copy.loadFailed,
     locale,
@@ -47,6 +48,36 @@ export function SessionInspectorPanel(props: { sessionId: string; active: boolea
   );
   const hidden = model.hiddenTurns + model.hiddenSteps;
 
+  // The record file is a fact about the workspace, not about the session's
+  // activity: it exists whether the trace is empty or not, and it never
+  // changes while the app is running. Read it once per activation; a failure
+  // hides the row — it is auxiliary, and a path that will not load should not
+  // masquerade as a trace that failed to read.
+  const [recordFile, setRecordFile] = useState<string | undefined>();
+  useEffect(() => {
+    if (!props.active) return;
+    let mounted = true;
+    void window.maka.inspector
+      .traceFile()
+      .then((path) => {
+        if (mounted) setRecordFile(path);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [props.active]);
+
+  async function copyRecordFile() {
+    if (!recordFile) return;
+    try {
+      await navigator.clipboard.writeText(recordFile);
+      toast.success(copy.pathCopied);
+    } catch {
+      // Clipboard denial is rare and the action is auxiliary; stay quiet.
+    }
+  }
+
   return (
     <Section
       variant="transparent"
@@ -57,6 +88,31 @@ export function SessionInspectorPanel(props: { sessionId: string; active: boolea
       aria-busy={snapshot.loading || undefined}
     >
       <VStack gap={2} height="100%">
+        {recordFile && (
+          <HStack
+            gap={2}
+            vAlign="center"
+            className="maka-inspector-record-file-row"
+            data-maka-contract="session-inspector-record-file"
+          >
+            <Text type="label" color="secondary" className="maka-inspector-record-file-label">
+              {copy.recordFile}
+            </Text>
+            <span className="maka-inspector-record-file" title={recordFile}>
+              <Text type="supporting">{recordFile}</Text>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Copy size={14} aria-hidden="true" />}
+              label={copy.copyPath}
+              onClick={() => {
+                void copyRecordFile();
+              }}
+            />
+          </HStack>
+        )}
+
         {snapshot.error && (
           <Banner
             status="error"

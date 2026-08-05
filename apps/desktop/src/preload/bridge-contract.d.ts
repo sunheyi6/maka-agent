@@ -574,6 +574,8 @@ export interface MakaBridge {
   inspector: {
     /** Read-only per-session causal trace (#1625). */
     trace(sessionId: string): Promise<Result<SessionTrace>>;
+    /** The record file the trace is projected from; static for a workspace. */
+    traceFile(): Promise<string>;
   };
   webSearch: {
     query(input: {
